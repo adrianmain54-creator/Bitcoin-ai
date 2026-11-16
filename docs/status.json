@@ -1,6 +1,7 @@
 {
-  "status": "not_started",
+  "status": "market_data_error",
   "mode": "paper",
   "initial_cash": 100,
-  "message": "Start the 24-hour workflow from the Actions page to begin the simulation."
+  "message": "Market data unavailable; no trade or state change: Could not retrieve BTC candles: HTTP Error 451: ",
+  "updated_at": "2026-11-16T11:02:50.664736+00:00"
 }
