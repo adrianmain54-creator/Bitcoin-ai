@@ -42,10 +42,10 @@ def test_stale_data_never_trades():
 
 
 def test_daily_loss_halt_de_risks_existing_paper_position():
-    account = PaperAccount(cash=0, btc=0.1)
+    account = PaperAccount(cash=0, btc=100.0)
     state = new_risk_state(10_000, NOW)
     result = run_paper_cycle(
-        closes=[90.0 + i for i in range(48)], account=account,
+        closes=[90.0] * 48, account=account,
         risk_state=state, observed_at=NOW, now=NOW,
         limits=RiskLimits(max_daily_loss_pct=0.02),
     )
