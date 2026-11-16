@@ -12,6 +12,7 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 - Deterministic IDF-weighted retrieval that gives title matches extra weight and reduces generic verb noise.
 - A retrieval-based question answering engine that returns cited excerpts and abstains when evidence is insufficient.
 - Corpus integrity checks for duplicate IDs, empty required fields, invalid source URL schemes, and missing provenance.
+- A corpus audit command reporting topic coverage, source-domain distribution, license-review status counts, and exact duplicate summaries.
 - A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees, with provider, source URL, observation time, units, age, and cache status.
 - Bounded network timeouts, short in-memory caching, response validation, and explicit errors when live data is unavailable.
 - A CLI for knowledge questions and live network snapshots.
