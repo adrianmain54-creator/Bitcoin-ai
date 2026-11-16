@@ -58,8 +58,11 @@ class KnowledgeBase:
                 raise ValueError(f"Knowledge document {doc.id!r} requires at least one topic")
             title_terms = Counter(tokenize(doc.title))
             body_terms = Counter(tokenize(doc.text))
-            self._indexed.append((doc, title_terms, body_terms))
-            self._document_frequency.update(set(title_terms) | set(body_terms))
+            topic_terms = Counter(tokenize(" ".join(doc.topics)))
+            self._indexed.append((doc, title_terms, body_terms, topic_terms))
+            self._document_frequency.update(
+                set(title_terms) | set(body_terms) | set(topic_terms)
+            )
 
     @classmethod
     def from_jsonl(cls, path: str | Path) -> "KnowledgeBase":
