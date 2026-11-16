@@ -95,8 +95,8 @@ def test_selection_score_rewards_consistency_and_penalizes_bad_segments():
     metrics = {"sortino_ratio": 1.0, "max_drawdown_pct": -5.0}
     steady = [0.01] * 40
     volatile = [0.05] * 10 + [0.01] * 10 + [-0.08] * 10 + [0.01] * 10
-    steady_score, steady_share, steady_worst = _selection_score(steady, metrics)
-    volatile_score, volatile_share, volatile_worst = _selection_score(volatile, metrics)
+    steady_score, steady_share, steady_worst, _, _ = _selection_score(steady, metrics)
+    volatile_score, volatile_share, volatile_worst, _, _ = _selection_score(volatile, metrics)
     assert steady_share == 1.0
     assert steady_worst > 0
     assert volatile_share < steady_share
@@ -114,3 +114,26 @@ def test_strategy_lab_reports_training_consistency_diagnostics():
         assert 0.0 <= fold["training_positive_segment_share"] <= 1.0
         assert isinstance(fold["training_worst_segment_return_pct"], float)
     assert "positive-segment share" in result["selection_policy"]
+
+
+
+def test_regime_selection_penalizes_weak_training_regime():
+    metrics = {"sortino_ratio": 1.0, "max_drawdown_pct": -5.0}
+    returns = [0.01] * 12 + [-0.03] * 12
+    regimes = ["uptrend"] * 12 + ["downtrend"] * 12
+    balanced = ["uptrend"] * 12 + ["downtrend"] * 12
+    _, _, _, weak_regime, coverage = _selection_score(returns, metrics, regimes)
+    assert weak_regime < 0
+    assert coverage == 2
+
+
+def test_strategy_lab_reports_causal_training_regime_diagnostics():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 12}, {"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    for fold in result["folds"]:
+        assert isinstance(fold["training_worst_regime_return_pct"], float)
+        assert 0 <= fold["training_regimes_scored"] <= 4
+    assert "trailing observations" in result["selection_policy"]
