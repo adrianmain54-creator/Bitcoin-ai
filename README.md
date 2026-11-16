@@ -18,6 +18,7 @@ A Bitcoin-native intelligence and automated-trading research project built from 
 - A public Binance BTC/USDT candle adapter that validates candles and excludes the still-forming candle.
 - Atomic, versioned persistence for simulated balances, trade history, and risk state.
 - A restart-safe continuous paper service and `bitcoin-ai paper-run` command; it polls public 1-minute candles and never sends exchange orders.
+- A read-only `bitcoin-ai paper-report` command for mark-to-market equity, net P&L, exposure, simulated fees, and clearly qualified checkpoint drawdown.
 - GitHub Actions CI and unit tests.
 
 This is **not yet a trained Bitcoin model, a validated profitable strategy, or a hosted always-on trading bot**. The market data adapter is read-only; the paper broker never submits exchange orders. Backtests and simulations do not guarantee future results.
@@ -33,6 +34,7 @@ python -m pip install -e ".[dev]"
 bitcoin-ai ask "How does a Bitcoin transaction use UTXOs?"
 bitcoin-ai network --currency USD
 bitcoin-ai paper-run --state ./paper-state.json --interval 1m --poll-seconds 60
+bitcoin-ai paper-report --state ./paper-state.json --initial-cash 10000
 pytest
 ```
 
@@ -48,4 +50,4 @@ A bot only runs while its host and network are available. Free hosting is not gu
 
 ## Safety
 
-Never enter seed phrases, private keys, wallet backups, or exchange credentials. Live trading is not enabled. See [docs/PAPER_SERVICE.md](docs/PAPER_SERVICE.md), [docs/SAFETY.md](docs/SAFETY.md), [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md), [docs/AUTOPILOT.md](docs/AUTOPILOT.md), [docs/PAPER_CYCLE.md](docs/PAPER_CYCLE.md), and [docs/TRADING_RISK.md](docs/TRADING_RISK.md).
+Never enter seed phrases, private keys, wallet backups, or exchange credentials. Live trading is not enabled. See [docs/PAPER_SERVICE.md](docs/PAPER_SERVICE.md), [docs/PAPER_PERFORMANCE.md](docs/PAPER_PERFORMANCE.md), [docs/SAFETY.md](docs/SAFETY.md), [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md), [docs/AUTOPILOT.md](docs/AUTOPILOT.md), [docs/PAPER_CYCLE.md](docs/PAPER_CYCLE.md), and [docs/TRADING_RISK.md](docs/TRADING_RISK.md).
