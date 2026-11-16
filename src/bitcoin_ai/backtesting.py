@@ -104,17 +104,33 @@ def run_sma_backtest(
     periods_per_year: float = 365.0,
 ) -> dict:
     """Long/cash SMA crossover; close-t signal is held from the next bar onward."""
+    for value, name in ((fast_window, "fast_window"), (slow_window, "slow_window")):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise BacktestError(f"{name} must be an integer")
     if fast_window < 1 or slow_window <= fast_window:
         raise BacktestError("Require 1 <= fast_window < slow_window")
+    for value, name in ((fee_bps, "fee_bps"), (slippage_bps, "slippage_bps"),
+                        (periods_per_year, "periods_per_year")):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise BacktestError(f"{name} must be a finite number")
     if fee_bps < 0 or slippage_bps < 0 or fee_bps + slippage_bps >= 10000:
         raise BacktestError("Costs must be non-negative and total less than 10000 bps")
     if periods_per_year <= 0:
         raise BacktestError("periods_per_year must be positive")
+    if not isinstance(bars, (list, tuple)) or any(not isinstance(bar, Bar) for bar in bars):
+        raise BacktestError("bars must be a list or tuple of Bar records")
     if len(bars) <= slow_window:
         raise BacktestError("Not enough rows for the slow moving-average window")
+    for index, bar in enumerate(bars):
+        if (not isinstance(bar.timestamp, datetime) or bar.timestamp.tzinfo is None
+                or bar.timestamp.utcoffset() is None):
+            raise BacktestError(f"Bar {index} timestamp must be timezone-aware")
+        if (isinstance(bar.close, bool) or not isinstance(bar.close, (int, float))
+                or not math.isfinite(bar.close) or bar.close <= 0):
+            raise BacktestError(f"Bar {index} close must be finite and positive")
     if any(bars[i].timestamp <= bars[i - 1].timestamp for i in range(1, len(bars))):
         raise BacktestError("Bars must have strictly increasing timestamps")
-    closes = [bar.close for bar in bars]
+    closes = [float(bar.close) for bar in bars]
     fee_rate = (fee_bps + slippage_bps) / 10000.0
 
     strategy_returns: list[float] = []
