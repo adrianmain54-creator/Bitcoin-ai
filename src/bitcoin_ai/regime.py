@@ -12,10 +12,10 @@ from .backtesting import BacktestError
 
 
 def classify_regime(closes, *, lookback=20, high_volatility_threshold=0.04):
-    if not isinstance(closes, (list, tuple)) or len(closes) < lookback + 1:
-        raise BacktestError("closes must contain at least lookback + 1 observations")
     if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 3:
         raise BacktestError("lookback must be an integer >= 3")
+    if not isinstance(closes, (list, tuple)) or len(closes) < lookback + 1:
+        raise BacktestError("closes must contain at least lookback + 1 observations")
     if (isinstance(high_volatility_threshold, bool)
             or not isinstance(high_volatility_threshold, (int, float))
             or not math.isfinite(high_volatility_threshold)
