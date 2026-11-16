@@ -20,7 +20,7 @@ jobs:
           cache: pip
       - name: Install Bitcoin AI
         run: python -m pip install .
-      - name: Download completed BTC/USDT daily candles
+      - name: Download completed BTC/USD daily candles from Kraken
         run: |
           python - <<'PY'
           import csv
@@ -29,21 +29,26 @@ jobs:
           import urllib.request
           from datetime import datetime, timezone
           
-          url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000"
+          url = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440"
           request = urllib.request.Request(url, headers={"User-Agent": "bitcoin-ai-research/1.0"})
-          with urllib.request.urlopen(request, timeout=20) as response:
-              rows = json.loads(response.read().decode("utf-8"))
-          now_ms = int(time.time() * 1000)
-          completed = [row for row in rows if int(row[6]) < now_ms]
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.loads(response.read().decode("utf-8"))
+          if payload.get("error"):
+              raise SystemExit(f"Kraken API error: {payload['error']}")
+          result = payload["result"]
+          pair_key = next(key for key in result if key != "last")
+          rows = result[pair_key]
+          now_s = int(time.time())
+          completed = [row for row in rows if int(row[0]) + 86400 < now_s]
           if len(completed) < 456:
-              raise SystemExit(f"Need at least 456 completed daily candles; received {len(completed)}")
+              raise SystemExit(f"Need at least 456 completed daily candles; Kraken returned {len(completed)}")
           with open("btc-daily.csv", "w", newline="", encoding="utf-8") as handle:
               writer = csv.writer(handle)
               writer.writerow(["timestamp", "close"])
               for row in completed:
-                  stamp = datetime.fromtimestamp(int(row[6]) / 1000, timezone.utc).isoformat()
+                  stamp = datetime.fromtimestamp(int(row[0]), timezone.utc).isoformat()
                   writer.writerow([stamp, row[4]])
-          print(f"Saved {len(completed)} completed daily candles.")
+          print(f"Saved {len(completed)} completed Kraken BTC/USD daily candles.")
           print(f"First close: {completed[0][4]} | Latest close: {completed[-1][4]}")
           PY
       - name: Run walk-forward research and robustness checks
