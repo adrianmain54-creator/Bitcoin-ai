@@ -75,3 +75,16 @@ def test_strategy_lab_is_deterministic_for_fixed_seed():
 def test_strategy_lab_rejects_invalid_configuration(kwargs):
     with pytest.raises(BacktestError):
         run_strategy_lab(bars(), **kwargs)
+
+
+
+def test_cash_is_a_valid_abstention_candidate():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    assert result["families"] == ["cash"]
+    assert result["out_of_sample_metrics"]["total_return_pct"] == 0.0
+    assert result["out_of_sample_metrics"]["max_drawdown_pct"] == 0.0
+    assert all(fold["selected_family"] == "cash" for fold in result["folds"])
