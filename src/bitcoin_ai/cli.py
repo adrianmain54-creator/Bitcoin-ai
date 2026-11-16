@@ -7,7 +7,9 @@ from .corpus_audit import build_corpus_report, format_corpus_report
 from .backtesting import BacktestError, load_close_csv, run_sma_backtest
 from .knowledge import KnowledgeBase, BitcoinAnswerEngine
 from .paper_service import PaperService
-from .state_store import StateStoreError
+from .market_data import BinanceCandleClient, MarketDataError
+from .performance import build_performance_report
+from .state_store import PaperStateStore, StateStoreError
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -35,6 +37,11 @@ def main() -> None:
     paper_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
     paper_parser.add_argument("--poll-seconds", type=float, default=60.0)
     paper_parser.add_argument("--initial-cash", type=float, default=10_000.0)
+    report_parser = subparsers.add_parser("paper-report", help="Show read-only mark-to-market paper account performance")
+    report_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
+    report_parser.add_argument("--initial-cash", type=float, default=10_000.0, help="Original starting cash used when the account was created")
+    report_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
+    report_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     backtest_parser = subparsers.add_parser("backtest", help="Research-test an SMA strategy on historical close-price CSV data")
     backtest_parser.add_argument("--csv", type=Path, required=True, help="CSV with timestamp and close columns")
     backtest_parser.add_argument("--fast-window", type=int, default=10)
@@ -102,6 +109,25 @@ def main() -> None:
             print("\\nBitcoin AI paper trader stopped. State was saved after the last completed cycle.")
         except (ValueError, OSError, StateStoreError) as exc:
             parser.exit(1, f"bitcoin-ai: paper trader stopped safely: {exc}\\n")
+        return
+
+
+    if args.command == "paper-report":
+        try:
+            account, _risk = PaperStateStore(args.state).load()
+            closes, observed_at = BinanceCandleClient().completed_closes(interval=args.interval, limit=2)
+            report = build_performance_report(account, price=closes[-1], starting_cash=args.initial_cash)
+            report["observed_at"] = observed_at.isoformat()
+        except (ValueError, OSError, StateStoreError, MarketDataError) as exc:
+            parser.exit(1, f"bitcoin-ai: paper report unavailable: {exc}\\n")
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print("Bitcoin AI paper account performance (simulation only)")
+            for key in ("mark_price", "cash", "btc", "btc_market_value", "equity", "net_pnl", "return_pct", "exposure_pct", "cumulative_simulated_fees", "trade_count", "observed_checkpoint_max_drawdown_pct"):
+                print(f"{key}: {report[key]}")
+            print(report["drawdown_note"])
+            print(f"Market data observed: {report['observed_at']}")
         return
 
     if args.command == "network":
