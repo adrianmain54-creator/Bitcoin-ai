@@ -36,6 +36,14 @@ class KnowledgeBase:
                 raise ValueError("Knowledge documents require non-empty id, title, and text")
             if not doc.source_url.startswith(("https://", "http://")):
                 raise ValueError(f"Knowledge document {doc.id!r} has an invalid source_url")
+            if not doc.publisher.strip() or doc.publisher == "unknown":
+                raise ValueError(f"Knowledge document {doc.id!r} is missing publisher provenance")
+            if not doc.retrieved_on.strip() or doc.retrieved_on == "unknown":
+                raise ValueError(f"Knowledge document {doc.id!r} is missing retrieved_on provenance")
+            if not doc.license_status.strip() or doc.license_status == "unverified":
+                raise ValueError(f"Knowledge document {doc.id!r} is missing license_status")
+            if not isinstance(doc.topics, (list, tuple)) or not doc.topics:
+                raise ValueError(f"Knowledge document {doc.id!r} requires at least one topic")
             title_terms = Counter(tokenize(doc.title))
             body_terms = Counter(tokenize(doc.text))
             self._indexed.append((doc, title_terms, body_terms))
