@@ -23,7 +23,7 @@ def test_sell_to_cash_and_never_go_short():
 
 def test_hold_when_already_at_target():
     account = PaperAccount(cash=5_000, btc=0.1, max_allocation=1)
-    event = account.rebalance(0.4444444444444444, 50_000)
+    event = account.rebalance(0.5, 50_000)
     assert event["side"] == "hold"
     assert account.trades == []
 
