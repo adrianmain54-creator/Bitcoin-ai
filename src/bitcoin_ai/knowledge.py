@@ -78,6 +78,9 @@ class KnowledgeBase:
 
         # IDF reduces the influence of generic terms shared by many documents.
         total_docs = len(self.documents)
+        if (len(query_terms) == 1
+                and self._document_frequency[next(iter(query_terms))] / total_docs > 0.5):
+            return []
         idf = {
             term: math.log(1 + (total_docs - self._document_frequency[term] + 0.5)
                            / (self._document_frequency[term] + 0.5))
@@ -104,6 +107,8 @@ class KnowledgeBase:
 
             coverage = sum(idf[t] for t in query_terms
                            if title_terms[t] or body_terms[t]) / denominator
+            if coverage < 0.35:
+                continue
             length_norm = math.sqrt(max(sum(body_terms.values()), 1))
             score = 0.65 * coverage + 0.35 * (weighted_match / (denominator * length_norm))
             searchable_text = " ".join(tokenize(doc.title + " " + doc.text))
