@@ -52,8 +52,8 @@ def walk_forward_sma_backtest(
                 or not isinstance(fast, int) or not isinstance(slow, int)
                 or fast < 1 or slow <= fast):
             raise BacktestError("Candidates must satisfy 1 <= fast_window < slow_window")
-        if slow > train_bars:
-            raise BacktestError("Every candidate slow window must fit inside train_bars")
+        if slow >= train_bars:
+            raise BacktestError("Every candidate slow window must be smaller than train_bars")
         normalized.append((fast, slow))
     if len(set(normalized)) != len(normalized):
         raise BacktestError("Duplicate parameter candidates are not allowed")
