@@ -7,14 +7,16 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 ## What exists now
 
 - A small Bitcoin knowledge base with source metadata.
+- Deterministic, IDF-weighted retrieval that gives title matches extra weight and reduces the influence of generic terms.
 - A retrieval-based question answering engine that returns cited excerpts.
-- A conservative response policy: it says when the local knowledge base does not contain enough evidence.
+- Conservative abstention when evidence is missing.
+- Corpus integrity checks for duplicate IDs, empty required fields, and non-HTTP(S) source URLs.
 - A CLI for asking questions.
-- Unit tests for retrieval, citations, and abstention.
-- A versioned seven-question benchmark covering source retrieval and out-of-domain abstention.
+- A seven-question benchmark covering expected top-ranked evidence and out-of-domain abstention.
+- Unit tests for ranking, deterministic results, citations, abstention, and corpus validation.
 - An optional model-adapter boundary for future open-weight models.
 
-This is **not yet a trained Bitcoin model**. The first milestone builds reliable data, evaluation, and interfaces before fine-tuning any model.
+This is **not yet a trained Bitcoin model**. The first milestone builds reliable data, evaluation, and interfaces before fine-tuning any model. The starter corpus is intentionally small; passing its benchmark does not establish broad Bitcoin expertise.
 
 ## Quick start
 
@@ -61,7 +63,7 @@ bitcoin-ai/
 
 - [x] Phase 1A: repository scaffold, local retrieval, CLI, tests
 - [ ] Phase 1B: expand curated corpus with source URLs, dates, and license metadata
-- [ ] Phase 1C: benchmark questions and answer-quality evaluation
+- [x] Phase 1C: initial retrieval benchmark and top-ranked evidence checks (human review and expansion still needed)
 - [ ] Phase 2: live public Bitcoin data adapters with caching and provenance
 - [ ] Phase 3: agent tools with strict permissions and verification
 - [ ] Phase 4: compare suitable open-weight base models
