@@ -6,6 +6,7 @@ from .data_sources import DataSourceError, MempoolSpaceClient
 from .corpus_audit import build_corpus_report, format_corpus_report
 from .backtesting import BacktestError, load_close_csv, run_sma_backtest
 from .knowledge import KnowledgeBase, BitcoinAnswerEngine
+from .paper_service import PaperService
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -28,6 +29,11 @@ def main() -> None:
     )
     network_parser.add_argument("--currency", default="USD", help="Three-letter currency code")
     network_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    paper_parser = subparsers.add_parser("paper-run", help="Run the continuous simulation-only BTC paper trader")
+    paper_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"), help="Persistent paper account state file")
+    paper_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
+    paper_parser.add_argument("--poll-seconds", type=float, default=60.0)
+    paper_parser.add_argument("--initial-cash", type=float, default=10_000.0)
     backtest_parser = subparsers.add_parser("backtest", help="Research-test an SMA strategy on historical close-price CSV data")
     backtest_parser.add_argument("--csv", type=Path, required=True, help="CSV with timestamp and close columns")
     backtest_parser.add_argument("--fast-window", type=int, default=10)
@@ -82,6 +88,19 @@ def main() -> None:
             print("Strategy:", json.dumps(result["strategy_metrics"], sort_keys=True))
             print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
             print("Limitations: " + " ".join(result["limitations"]))
+        return
+
+    if args.command == "paper-run":
+        try:
+            service = PaperService(
+                state_path=str(args.state), interval=args.interval,
+                poll_seconds=args.poll_seconds, initial_cash=args.initial_cash,
+            )
+            service.run_forever()
+        except KeyboardInterrupt:
+            print("\\nBitcoin AI paper trader stopped. State was saved after the last completed cycle.")
+        except (ValueError, OSError) as exc:
+            parser.exit(1, f"bitcoin-ai: paper trader stopped safely: {exc}\\n")
         return
 
     if args.command == "network":
