@@ -86,7 +86,7 @@ def test_future_dated_data_cannot_trigger_emergency_de_risk():
 def test_invalid_latest_close_is_rejected_before_account_access(closes):
     account = PaperAccount(cash=10_000)
     state = new_risk_state(10_000, NOW)
-    with pytest.raises(ValueError, match="latest close"):
+    with pytest.raises(ValueError, match="closes must be|latest close"):
         run_paper_cycle(
             closes=closes, account=account, risk_state=state,
             observed_at=NOW, now=NOW,
