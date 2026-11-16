@@ -61,3 +61,17 @@ def test_bad_candle_fails_closed_when_both_sources_return_bad_data():
     client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
     with pytest.raises(MarketDataError):
         client.completed_closes(now=NOW)
+
+
+def test_three_minute_fallback_never_substitutes_five_minute_candles():
+    calls = 0
+    def opener(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(args[0].full_url, 451, "Unavailable", {}, None)
+        return Response({"error": [], "result": {"XXBTZUSDT": [], "last": 1}})
+    client = BinanceCandleClient(opener=opener)
+    with pytest.raises(MarketDataError, match="does not support 3m"):
+        client.completed_closes(interval="3m", now=NOW)
+    assert calls == 1
