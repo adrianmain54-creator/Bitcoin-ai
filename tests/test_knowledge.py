@@ -64,3 +64,9 @@ def test_every_corpus_entry_has_source_provenance():
         assert doc.retrieved_on == "2026-11-16"
         assert doc.license_status and doc.license_status != "unverified"
         assert doc.topics
+
+
+def test_engine_abstains_on_overly_broad_or_weakly_supported_queries():
+    engine = BitcoinAnswerEngine(KnowledgeBase.from_jsonl(DATA))
+    assert engine.answer("Bitcoin")["abstained"] is True
+    assert engine.answer("Bitcoin price prediction")["abstained"] is True
