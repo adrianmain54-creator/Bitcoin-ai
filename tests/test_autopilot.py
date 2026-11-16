@@ -65,3 +65,18 @@ def test_invalid_history_does_not_mutate_account():
         )
     assert account.cash == 10_000
     assert account.btc == 0
+
+
+def test_future_dated_data_cannot_trigger_emergency_de_risk():
+    account = PaperAccount(cash=5_000, btc=0.05)
+    state = new_risk_state(account.equity(100_000), NOW)
+    state.halted = True
+    cash_before, btc_before = account.cash, account.btc
+    result = run_paper_cycle(
+        closes=[100_000.0] * 48, account=account, risk_state=state,
+        observed_at=NOW + timedelta(seconds=1), now=NOW,
+    )
+    assert not result.risk.allowed
+    assert not result.risk.halted
+    assert result.execution is None
+    assert (account.cash, account.btc) == (cash_before, btc_before)
