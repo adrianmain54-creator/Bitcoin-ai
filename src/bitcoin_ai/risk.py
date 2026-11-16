@@ -85,6 +85,10 @@ def evaluate_risk(
     if observation_time > current_time:
         return RiskDecision(False, current_allocation, "Market data timestamp is in the future.", state.halted)
 
+    age = (current_time - observation_time).total_seconds()
+    if age > limits.max_data_age_seconds:
+        return RiskDecision(False, current_allocation, "Market data is stale; no rebalance allowed.", False)
+
     day = current_time.date().isoformat()
     if day != state.utc_day:
         state.utc_day = day
@@ -105,10 +109,6 @@ def evaluate_risk(
     if drawdown >= limits.max_drawdown_pct:
         state.halted = True
         return RiskDecision(False, 0.0, "Maximum drawdown breached; trading halted and target cash.", True)
-
-    age = (current_time - observation_time).total_seconds()
-    if age > limits.max_data_age_seconds:
-        return RiskDecision(False, current_allocation, "Market data is stale; no rebalance allowed.", False)
 
     target = min(float(requested_allocation), limits.max_allocation)
     if state.last_trade_at is not None:
