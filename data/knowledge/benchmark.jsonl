@@ -5,3 +5,17 @@
 {"id":"bench-whitepaper-timestamping","question":"How are Bitcoin transactions timestamped?","expected_source_ids":["btc-whitepaper-p2p"],"should_abstain":false}
 {"id":"bench-unrelated-cooking","question":"How do I bake a chocolate cake?","expected_source_ids":[],"should_abstain":true}
 {"id":"bench-unrelated-travel","question":"What is the best hotel in Tokyo?","expected_source_ids":[],"should_abstain":true}
+{"id":"bench-utxo-transaction","question":"What does a Bitcoin transaction consume and create as UTXOs?","expected_source_ids":["btc-dev-guide-transactions"],"should_abstain":false}
+{"id":"bench-p2p-peer-network","question":"How do Bitcoin peer to peer nodes exchange blocks and transaction data?","expected_source_ids":["btc-dev-guide-p2p"],"should_abstain":false}
+{"id":"bench-payment-confirmations","question":"Why should a merchant not treat a mempool transaction as final settlement?","expected_source_ids":["btc-dev-guide-payment-processing"],"should_abstain":false}
+{"id":"bench-node-modes","question":"What is the difference between full validation and lightweight Bitcoin node modes?","expected_source_ids":["btc-dev-guide-operating-modes"],"should_abstain":false}
+{"id":"bench-bitcoin-core","question":"What does Bitcoin Core do when validating blocks and transactions?","expected_source_ids":["btc-core-overview"],"should_abstain":false}
+{"id":"bench-bip32-hd","question":"How do hierarchical deterministic wallets derive child keys from paths?","expected_source_ids":["btc-bip32-hd-wallets"],"should_abstain":false}
+{"id":"bench-bip39-seed","question":"How does a mnemonic phrase generate a wallet seed and why protect it?","expected_source_ids":["btc-bip39-mnemonics"],"should_abstain":false}
+{"id":"bench-segwit-weight","question":"How does SegWit change transaction serialization and block weight?","expected_source_ids":["btc-bip141-segwit"],"should_abstain":false}
+{"id":"bench-taproot","question":"What spending paths and signature scheme does Taproot support?","expected_source_ids":["btc-bip341-taproot"],"should_abstain":false}
+{"id":"bench-psbt","question":"How can multiple signers coordinate a partially signed Bitcoin transaction?","expected_source_ids":["btc-bip174-psbt"],"should_abstain":false}
+{"id":"bench-lightning-routing","question":"What does Lightning gossip distribute and why can routes fail?","expected_source_ids":["btc-bolt-07"],"should_abstain":false}
+{"id":"bench-lightning-invoice","question":"What information does a Lightning invoice communicate?","expected_source_ids":["btc-bolt-11"],"should_abstain":false}
+{"id":"bench-lightning-offers","question":"What are reusable Lightning offers compared with one-time invoices?","expected_source_ids":["btc-bolt-12"],"should_abstain":false}
+{"id":"bench-out-of-domain-health","question":"What are the symptoms and treatment of seasonal allergies?","expected_source_ids":[],"should_abstain":true}
