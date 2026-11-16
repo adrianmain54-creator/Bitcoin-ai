@@ -1,90 +1,26 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#080d18"><title>Bitcoin AI · Paper Trading</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08111f"><title>Bitcoin AI · Paper Terminal</title>
 <style>
-:root{color-scheme:dark;--bg:#080d18;--panel:#111b2c;--line:#26364d;--muted:#91a3bb;--text:#edf4ff;--cyan:#58d9d0;--green:#59d69b;--red:#ff7885;--amber:#f4c66b}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0,#19304b,transparent 42%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1100px;margin:auto;padding:24px 16px 60px}.top,.row,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{display:flex;gap:12px;align-items:center}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#58d9d0,#4386ff);display:grid;place-items:center;color:#071321;font-size:24px;font-weight:900}.eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);font-weight:800}h1{font-size:21px;margin:0}.muted,.small{color:var(--muted)}.small{font-size:12px}.pill{border:1px solid #27614f;color:var(--green);border-radius:99px;padding:6px 10px;font-size:12px}.hero{margin:30px 0 18px}.hero h2{font-size:clamp(28px,5vw,42px);line-height:1.1;margin:8px 0}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:linear-gradient(145deg,#142139,#0e1727);border:1px solid var(--line);border-radius:16px;padding:18px;margin:12px 0}.metric{font-size:25px;font-weight:750;margin-top:5px;overflow-wrap:anywhere}.label{font-size:12px;color:var(--muted)}button{border:0;border-radius:10px;padding:11px 15px;font:700 14px system-ui;cursor:pointer;background:var(--cyan);color:#071321}button.secondary{background:#1b2a40;color:var(--text);border:1px solid var(--line)}button.danger{background:#4b202c;color:#ffdbe0;border:1px solid #783846}button:disabled{opacity:.45;cursor:not-allowed}.status{padding:10px 12px;border-radius:10px;background:#0b1423;border:1px solid var(--line)}.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.trade{display:grid;grid-template-columns:100px 1fr 100px;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}.trade:last-child{border:0}.bar{height:8px;background:#26364d;border-radius:99px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--cyan);width:0}input{background:#0b1423;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px;width:130px;font:inherit}.fine{font-size:12px;color:var(--muted);margin-top:20px}a{color:var(--cyan)}@media(max-width:720px){.grid{grid-template-columns:repeat(2,1fr)}.trade{grid-template-columns:80px 1fr 85px}}@media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.metric{font-size:21px}}
-</style>
-</head>
-<body><main>
-<header class="top"><div class="brand"><div class="logo">₿</div><div><div class="eyebrow">Bitcoin AI · Simulation</div><h1>Paper Trading Terminal</h1></div></div><span class="pill">● FAKE MONEY ONLY</span></header>
-<section class="hero"><div class="eyebrow">BTC / USDT · LIVE PUBLIC MARKET DATA</div><h2>Let the strategy trade.<br>Keep every dollar virtual.</h2><p class="muted">A browser-based paper-trading terminal. It watches live BTC prices and simulates decisions—no exchange account, deposits, or real orders.</p></section>
+:root{color-scheme:dark;--bg:#08111f;--panel:#101d30;--line:#263b55;--muted:#91a5bf;--txt:#edf5ff;--cyan:#56d9d0;--green:#61d6a0;--red:#ff7c89;--amber:#f0c36a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0,#173451,transparent 42%),var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1120px;margin:auto;padding:22px 16px 55px}.top,.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#56d9d0,#548cff);color:#071321;font-size:24px;font-weight:900}.eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);font-weight:800}h1{font-size:21px;margin:0}h2{font-size:30px;margin:7px 0}.muted,.small{color:var(--muted)}.small{font-size:12px}.pill{border:1px solid #28634f;color:var(--green);border-radius:99px;padding:6px 10px;font-size:12px}.hero{margin:28px 0 18px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.panel{background:linear-gradient(145deg,#14243b,#0e192a);border:1px solid var(--line);border-radius:16px;padding:17px;margin:12px 0}.metric{font-size:25px;font-weight:750;margin-top:5px;overflow-wrap:anywhere}.label{font-size:12px;color:var(--muted)}.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--amber)}.chart{width:100%;height:260px;display:block}.trade{display:grid;grid-template-columns:75px 1fr 110px;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}.trade:last-child{border:0}a{color:var(--cyan)}.foot{font-size:12px;color:var(--muted);margin-top:20px}.status{padding:10px 12px;border-radius:10px;background:#0b1626;border:1px solid var(--line)}@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.chart{height:210px}}@media(max-width:390px){.metric{font-size:20px}}
+</style></head><body><main>
+<header class="top"><div class="brand"><div class="logo">₿</div><div><div class="eyebrow">Bitcoin AI · Remote paper engine</div><h1>Paper Trading Terminal</h1></div></div><span class="pill">● FAKE MONEY ONLY</span></header>
+<section class="hero"><div class="eyebrow">BTC / USDT · PUBLIC MARKET DATA</div><h2>Paper trading, even when your iPad is off.</h2><p class="muted">The trading cycle runs on GitHub Actions every five minutes. This page only displays the latest published snapshot.</p></section>
 <div class="grid">
- <section class="panel"><div class="label">Portfolio value</div><div class="metric" id="equity">$100.00</div><div class="small" id="pnl">+$0.00 (0.00%)</div></section>
- <section class="panel"><div class="label">Available fake cash</div><div class="metric" id="cash">$100.00</div><div class="small">Virtual USDT</div></section>
- <section class="panel"><div class="label">BTC held</div><div class="metric" id="btc">0.000000</div><div class="small" id="exposure">0% exposure</div></section>
- <section class="panel"><div class="label">Live BTC price</div><div class="metric" id="price">Loading…</div><div class="small" id="priceTime">Waiting for market data</div></section>
+<section class="panel"><div class="label">Portfolio value</div><div class="metric" id="equity">$100.00</div><div class="small" id="pnl">Waiting for first run</div></section>
+<section class="panel"><div class="label">Fake cash</div><div class="metric" id="cash">$100.00</div><div class="small">Virtual USDT</div></section>
+<section class="panel"><div class="label">BTC holdings</div><div class="metric" id="btc">0.000000</div><div class="small" id="exposure">0% exposure</div></section>
+<section class="panel"><div class="label">BTC / USDT price</div><div class="metric" id="price">Loading…</div><div class="small" id="marketTime">Waiting for market</div></section>
 </div>
-<section class="panel">
- <div class="row"><div><div class="eyebrow">Virtual wallet</div><h3 style="margin:4px 0">Add fake money</h3><div class="small">This only increases your local simulation balance.</div></div><div class="actions"><input id="deposit" type="number" min="1" max="1000000" step="1" value="100" aria-label="Fake amount to add"><button id="addFunds">＋ Add fake funds</button></div></div>
- <div class="small" id="walletNote" role="status" style="margin-top:10px">Starting balance: $100 virtual USDT.</div>
-</section>
-<section class="panel">
- <div class="row"><div><div class="eyebrow">Autonomous paper strategy</div><h3 style="margin:4px 0">BTC trend engine</h3><div class="small">12 / 48 candle moving-average baseline · not a trained AI model</div></div><div class="actions"><button id="toggle">▶ Start AI paper trading</button><button class="secondary" id="reset">Reset simulation</button></div></div>
- <div class="grid" style="margin-top:15px">
-  <div class="status"><div class="label">Engine</div><strong id="engine" class="amber">STOPPED</strong></div>
-  <div class="status"><div class="label">Current signal</div><strong id="signal">WAIT</strong></div>
-  <div class="status"><div class="label">Risk gate</div><strong id="risk" class="green">CLEAR</strong></div>
-  <div class="status"><div class="label">Completed trades</div><strong id="count">0</strong></div>
- </div>
- <div style="margin-top:15px"><div class="row"><span class="label">Maximum allocation</span><strong>20%</strong></div><div class="bar"><i id="allocation"></i></div><div class="small" style="margin-top:8px">Simulated fee: 0.10% · slippage: 0.05% · one trade per 15-minute cooldown · daily loss stop: 2% · drawdown stop: 10%.</div></div>
-</section>
-<section class="panel"><div class="row"><div><div class="eyebrow">Decision feed</div><h3 style="margin:4px 0">What the AI is doing</h3></div><span class="small" id="updated">No updates yet</span></div><div id="feed" class="small" style="margin-top:12px">Start paper trading to begin the simulation.</div></section>
-<section class="panel"><div class="row"><div><div class="eyebrow">Trade history</div><h3 style="margin:4px 0">Simulated executions</h3></div><span class="small">Newest first</span></div><div id="trades" class="muted" style="margin-top:12px">No trades yet.</div></section>
-<p class="fine">Important: this is a browser-local simulation. Your fake wallet and trades are saved only in this browser on this device; they do not sync to GitHub Actions or other devices. Keep this page open while the engine runs. Public Binance market data is read-only. No real money is accepted, no exchange orders are sent, and profits are not guaranteed. This strategy is a simple SMA baseline, not a validated profitable model.</p>
-</main>
-<script>
-(()=> {
-const KEY='bitcoin-ai-paper-terminal-v1', FEE=.001, SLIP=.0005, MAX_ALLOC=.20, COOLDOWN=15*60*1000;
-const $=id=>document.getElementById(id);
-const fresh=()=>({cash:100,btc:0,initial:100,peak:100,dayStart:100,dayKey:new Date().toISOString().slice(0,10),trades:[],running:false,lastTrade:0,lastPrice:0,price:0,signal:'WAIT',risk:'CLEAR',feed:'Ready. Start the engine to begin.',updated:null});
-let s; try{s=JSON.parse(localStorage.getItem(KEY))||fresh()}catch{s=fresh()}
-let candles=[],busy=false;
-function save(){try{localStorage.setItem(KEY,JSON.stringify(s))}catch{}}
-function money(n){return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-function equity(){return s.cash+s.btc*s.price}
-function log(msg){s.feed=msg;s.updated=new Date().toLocaleTimeString();save();render()}
-function render(){
- const eq=equity(), pnl=eq-s.initial, pct=s.initial?pnl/s.initial*100:0, exposure=eq?s.btc*s.price/eq*100:0;
- $('equity').textContent=money(eq);$('cash').textContent=money(s.cash);$('btc').textContent=s.btc.toFixed(6);$('price').textContent=s.price?money(s.price):'Loading…';$('priceTime').textContent=s.price?'Updated '+(s.updated||'just now'):'Waiting for market data';
- $('pnl').textContent=(pnl>=0?'+':'')+money(pnl)+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%)';$('pnl').className='small '+(pnl>=0?'green':'red');
- $('exposure').textContent=exposure.toFixed(1)+'% exposure';$('engine').textContent=s.running?'RUNNING':'STOPPED';$('engine').className=s.running?'green':'amber';$('toggle').textContent=s.running?'Ⅱ Pause AI paper trading':'▶ Start AI paper trading';$('signal').textContent=s.signal;$('risk').textContent=s.risk;$('risk').className=s.risk==='CLEAR'?'green':'red';$('count').textContent=s.trades.length;$('allocation').style.width=Math.min(100,exposure/MAX_ALLOC*100)+'%';$('feed').textContent=s.feed;$('updated').textContent=s.updated||'No updates yet';
- $('trades').innerHTML=s.trades.length?s.trades.slice(0,12).map(t=>'<div class="trade"><strong class="'+(t.side==='BUY'?'green':'red')+'">'+t.side+'</strong><span>'+t.qty.toFixed(6)+' BTC · '+money(t.price)+'<br><span class="muted">'+t.time+'</span></span><strong>'+money(t.total)+'</strong></div>').join(''):'No trades yet.';
-}
-async function market(){
- if(busy)return;busy=true;
- try{
-  const r=await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100',{cache:'no-store'});if(!r.ok)throw Error('Market feed HTTP '+r.status);
-  const data=await r.json();candles=data.slice(0,-1).map(x=>Number(x[4])).filter(x=>Number.isFinite(x)&&x>0);
-  if(!candles.length)throw Error('No completed candles');
-  s.price=candles[candles.length-1];$('priceTime').textContent='Live · '+new Date().toLocaleTimeString();save();
-  const fast=candles.slice(-12).reduce((a,b)=>a+b,0)/12, slow=candles.slice(-48).reduce((a,b)=>a+b,0)/48;
-  s.signal=fast>slow?'BUY BIAS':fast<slow?'SELL BIAS':'WAIT';if(s.running)decide(fast,slow);else render();
- }catch(e){$('priceTime').textContent='Market data unavailable · retrying';log('Market feed error: '+e.message+'. No trade was made.')}
- finally{busy=false}
-}
-function decide(fast,slow){
- const now=Date.now(),eq=equity(),key=new Date().toISOString().slice(0,10);
- if(key!==s.dayKey){s.dayKey=key;s.dayStart=eq}
- s.peak=Math.max(s.peak,eq);
- const dailyLoss=(s.dayStart-eq)/Math.max(s.dayStart,1), drawdown=(s.peak-eq)/Math.max(s.peak,1);
- if(dailyLoss>=.02||drawdown>=.10){s.risk='HALTED';s.running=false;log('Risk protection halted the engine. '+(dailyLoss>=.02?'Daily loss limit reached.':'Drawdown limit reached.'));return}
- s.risk='CLEAR';
- if(now-s.lastTrade<COOLDOWN){log('WAIT — cooldown active. '+s.signal+'; no order placed.');return}
- if(fast>slow && s.btc===0){
-  const budget=Math.min(s.cash,eq*MAX_ALLOC);if(budget<5){log('BUY skipped — not enough available fake cash.');return}
-  const fill=s.price*(1+SLIP),qty=(budget/(1+FEE))/fill,fee=qty*fill*FEE,total=qty*fill+fee;
-  s.cash-=total;s.btc+=qty;s.lastTrade=now;s.trades.unshift({side:'BUY',qty,price:fill,total,time:new Date().toLocaleString()});log('BUY simulated: trend is positive. Bought '+qty.toFixed(6)+' BTC using '+money(total)+' virtual USDT.');
- }else if(fast<slow && s.btc>0){
-  const qty=s.btc,fill=s.price*(1-SLIP),gross=qty*fill,fee=gross*FEE,total=gross-fee;
-  s.cash+=total;s.btc=0;s.lastTrade=now;s.trades.unshift({side:'SELL',qty,price:fill,total,time:new Date().toLocaleString()});log('SELL simulated: trend turned negative. Sold '+qty.toFixed(6)+' BTC for '+money(total)+' virtual USDT.');
- }else{log('WAIT — no new trade condition. Signal: '+s.signal+'.')}
-}
-$('addFunds').onclick=()=>{const n=Number($('deposit').value);if(!Number.isFinite(n)||n<1||n>1000000){$('walletNote').textContent='Enter an amount from $1 to $1,000,000.';return}s.cash+=n;s.initial+=n;s.dayStart+=n;s.peak+=n;$('walletNote').textContent=money(n)+' fake USDT added to this browser wallet.';save();render()};
-$('toggle').onclick=()=>{s.running=!s.running;if(s.running){s.risk='CLEAR';log('Engine started. Monitoring live BTC candles; all orders are simulated.');market()}else log('Engine paused. Your virtual wallet is saved on this device.')};
-$('reset').onclick=()=>{if(!confirm('Reset all fake funds and simulated trade history on this device?'))return;s=fresh();save();render();$('walletNote').textContent='Simulation reset. Starting balance: $100.'};
-render();market();setInterval(market,15000);
-})();
+<section class="panel"><div class="row"><div><div class="eyebrow">Market chart</div><h3 style="margin:4px 0">BTC / USDT · 1 minute</h3></div><div class="small" id="chartNote">Loading public candles…</div></div><canvas id="chart" class="chart" aria-label="BTC USDT price chart"></canvas></section>
+<section class="panel"><div class="row"><div><div class="eyebrow">Background engine</div><h3 style="margin:4px 0">Latest AI decision</h3></div><div class="status" id="engine">WAITING FOR FIRST RUN</div></div><div class="grid" style="margin-top:12px"><div class="status"><div class="label">Signal</div><strong id="signal">—</strong></div><div class="status"><div class="label">Risk gate</div><strong id="risk">—</strong></div><div class="status"><div class="label">Trades</div><strong id="count">0</strong></div><div class="status"><div class="label">Last execution</div><strong id="execution">—</strong></div></div><p class="small" id="message">The scheduled service has not published a run yet.</p></section>
+<section class="panel"><div class="row"><div><div class="eyebrow">Simulated executions</div><h3 style="margin:4px 0">Trade history</h3></div><span class="small">Newest first</span></div><div id="trades" class="muted">No trades yet.</div></section>
+<p class="foot">Simulation only. Starting balance $100 fake USDT. Strategy is a simple 12/48 SMA baseline, not a trained or proven profitable model. Risk limits: 20% maximum allocation, 2% daily loss halt, 10% drawdown halt, 15-minute cooldown. Scheduled checks can be delayed or skipped by GitHub; this is not a guaranteed always-on server. No exchange credentials or real orders are used. <a href="https://github.com/adrianmain54-creator/Bitcoin-ai/actions/workflows/paper-trader.yml">View background runs and logs</a>.</p>
+</main><script>
+const STATUS_URL='./status.json';
+const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function drawChart(rows){const c=document.getElementById('chart'),ctx=c.getContext('2d'),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*dpr;c.height=h*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,w,h);if(!rows||rows.length<2)return;const vals=rows.map(x=>Number(x[4])),lo=Math.min(...vals),hi=Math.max(...vals),pad=12;ctx.strokeStyle='#56d9d0';ctx.lineWidth=2;ctx.beginPath();vals.forEach((v,i)=>{const x=pad+i/(vals.length-1)*(w-2*pad),y=h-pad-(v-lo)/(hi-lo||1)*(h-2*pad);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();ctx.fillStyle='#91a5bf';ctx.font='11px system-ui';ctx.fillText(money(hi),pad,12);ctx.fillText(money(lo),pad,h-3)}
+async function loadChart(){try{const r=await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=60',{cache:'no-store'});if(!r.ok)throw Error();drawChart(await r.json());document.getElementById('chartNote').textContent='Public live market feed'}catch{document.getElementById('chartNote').textContent='Chart feed unavailable'}}
+async function refresh(){try{const r=await fetch(STATUS_URL+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('Status HTTP '+r.status);const s=await r.json(),p=s.portfolio||{},d=s.decision||{},m=s.market||{};document.getElementById('equity').textContent=money(p.equity??100);document.getElementById('cash').textContent=money(p.cash??100);document.getElementById('btc').textContent=Number(p.btc||0).toFixed(6);document.getElementById('price').textContent=m.price?money(m.price):'—';document.getElementById('marketTime').textContent=m.observed_at?'Market candle '+new Date(m.observed_at).toLocaleString():'No market timestamp';document.getElementById('pnl').textContent=p.net_pnl===undefined?'Waiting':(p.net_pnl>=0?'+':'')+money(p.net_pnl)+' ('+Number(p.return_pct||0).toFixed(2)+'%)';document.getElementById('exposure').textContent=Number(p.exposure_pct||0).toFixed(1)+'% exposure';document.getElementById('engine').textContent=s.status==='running'?'● BACKGROUND ACTIVE':String(s.status||'UNKNOWN').toUpperCase();document.getElementById('signal').textContent=d.signal||'—';document.getElementById('risk').textContent=d.risk_halted?'HALTED':d.risk_allowed?'CLEAR':'BLOCKED';document.getElementById('count').textContent=p.trade_count??0;document.getElementById('execution').textContent=d.execution?.side||'HOLD';document.getElementById('message').textContent=(s.message||'')+' Last update: '+(s.updated_at?new Date(s.updated_at).toLocaleString():'not yet');const ts=s.recent_trades||[];document.getElementById('trades').innerHTML=ts.length?ts.slice(0,15).map(t=>'<div class="trade"><strong class="'+(t.side==='buy'?'good':'bad')+'">'+String(t.side||'').toUpperCase()+'</strong><span>'+Number(t.quantity_btc||0).toFixed(6)+' BTC<br><span class="small">'+new Date(t.timestamp).toLocaleString()+'</span></span><strong>'+money(t.execution_price*t.quantity_btc)+'</strong></div>').join(''):'No simulated trades yet.'}catch(e){document.getElementById('engine').textContent='STATUS NOT PUBLISHED';document.getElementById('message').textContent='Could not load docs/status.json. Enable GitHub Pages from main /docs and start the background workflow.'}}
+refresh();loadChart();setInterval(refresh,15000);setInterval(loadChart,60000);
 </script></body></html>
