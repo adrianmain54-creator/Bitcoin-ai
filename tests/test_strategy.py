@@ -52,3 +52,13 @@ def test_signal_rejects_invalid_current_allocation():
             list(range(100, 161)), fast_window=5, slow_window=20,
             current_allocation=1.1,
         )
+
+
+def test_bullish_signal_reduces_exposure_above_configured_cap():
+    closes = list(range(100, 161))
+    signal = generate_signal(
+        closes, fast_window=5, slow_window=20,
+        max_allocation=0.2, current_allocation=0.4,
+    )
+    assert signal.action == "sell"
+    assert signal.target_allocation == 0.2
