@@ -43,3 +43,7 @@ def test_invalid_target_rejected(allocation):
 def test_invalid_account_risk_configuration_rejected():
     with pytest.raises(PaperTradingError):
         PaperAccount(max_allocation=1.5)
+
+def test_non_numeric_target_rejected():
+    with pytest.raises(PaperTradingError):
+        PaperAccount().rebalance("0.2", 50_000)
