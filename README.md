@@ -22,7 +22,7 @@ A Bitcoin-native intelligence and automated-trading research project built from 
 - Atomic, versioned persistence for simulated balances, trade history, and risk state.
 - A restart-safe continuous paper service and `bitcoin-ai paper-run` command; it polls public 1-minute candles and never sends exchange orders.
 - A read-only `bitcoin-ai paper-report` command for mark-to-market equity, net P&L, exposure, simulated fees, and clearly qualified checkpoint drawdown.
-- GitHub Actions CI and unit tests.
+- An on-demand GitHub Actions workflow that downloads completed BTC/USDT daily candles, runs the walk-forward research lab with 2x-cost stress and regime breakdowns, and uploads the full report as an artifact.\n- GitHub Actions CI and unit tests.
 
 This is **not yet a trained Bitcoin model, a validated profitable strategy, or a hosted always-on trading bot**. The market data adapter is read-only; the paper broker never submits exchange orders. Backtests and simulations do not guarantee future results.
 
