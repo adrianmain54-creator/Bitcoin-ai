@@ -10,7 +10,6 @@ from .paper_service import PaperService
 from .market_data import BinanceCandleClient, MarketDataError
 from .performance import build_performance_report
 from .state_store import PaperStateStore, StateStoreError
-from .web_dashboard import serve_dashboard
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -38,11 +37,6 @@ def main() -> None:
     paper_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
     paper_parser.add_argument("--poll-seconds", type=float, default=60.0)
     paper_parser.add_argument("--initial-cash", type=float, default=10_000.0)
-    web_parser = subparsers.add_parser("web", help="Start the temporary localhost-only read-only test website")
-    web_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
-    web_parser.add_argument("--initial-cash", type=float, default=10_000.0)
-    web_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
-    web_parser.add_argument("--port", type=int, default=8765)
     report_parser = subparsers.add_parser("paper-report", help="Show read-only mark-to-market paper account performance")
     report_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
     report_parser.add_argument("--initial-cash", type=float, default=10_000.0, help="Original starting cash used when the account was created")
@@ -118,18 +112,6 @@ def main() -> None:
         return
 
 
-
-    if args.command == "web":
-        try:
-            serve_dashboard(
-                state_path=str(args.state), initial_cash=args.initial_cash,
-                interval=args.interval, port=args.port,
-            )
-        except KeyboardInterrupt:
-            print("\\nBitcoin AI test website stopped.")
-        except (ValueError, OSError) as exc:
-            parser.exit(1, f"bitcoin-ai: test website stopped safely: {exc}\\n")
-        return
 
     if args.command == "paper-report":
         try:
