@@ -14,6 +14,7 @@ A Bitcoin-native intelligence and automated-trading research project built from 
 - A CSV-based SMA research backtester with configurable fee/slippage assumptions and buy-and-hold comparison.
 - A **paper-only portfolio execution simulator** that caps BTC allocation, models fees and adverse slippage, and records simulated fills.
 - An explainable SMA trend-signal baseline and independent fail-closed risk gates (20% default exposure cap, 2% daily-loss halt, 10% drawdown halt, stale-data rejection, cooldown, and kill switch).
+- A one-cycle autonomous paper-trading orchestrator that connects signals, risk decisions, and simulated execution; risk halts de-risk to cash while stale data blocks trading.
 - GitHub Actions CI and unit tests.
 
 This is **not yet a trained Bitcoin model, a validated profitable strategy, or a continuously running trading bot**. The market data adapter is read-only; the paper broker never submits exchange orders. Backtests and simulations do not guarantee future results.
@@ -35,7 +36,7 @@ pytest
 
 1. Historical data collection with provenance and validation.
 2. Walk-forward evaluation with untouched holdout data and realistic costs.
-3. Integrate the new signal and risk modules into a durable paper-trading loop with public candle ingestion, persistent state, and monitoring.
+3. Run the one-cycle signal/risk/paper-execution orchestrator on validated completed candles; add public candle ingestion, durable scheduling, persistent state, and monitoring.
 4. Forward paper observation across market regimes.
 5. Only after explicit review: isolated exchange adapter, disabled by default, with strict permissions and a kill switch.
 
@@ -43,4 +44,4 @@ A bot only runs while its host and network are available. Free hosting is not gu
 
 ## Safety
 
-Never enter seed phrases, private keys, wallet backups, or exchange credentials. Live trading is not enabled. See [docs/SAFETY.md](docs/SAFETY.md), [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md), [docs/AUTOPILOT.md](docs/AUTOPILOT.md), and [docs/TRADING_RISK.md](docs/TRADING_RISK.md).
+Never enter seed phrases, private keys, wallet backups, or exchange credentials. Live trading is not enabled. See [docs/SAFETY.md](docs/SAFETY.md), [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md), [docs/AUTOPILOT.md](docs/AUTOPILOT.md), [docs/PAPER_CYCLE.md](docs/PAPER_CYCLE.md), and [docs/TRADING_RISK.md](docs/TRADING_RISK.md).
