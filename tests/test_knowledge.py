@@ -54,3 +54,13 @@ def test_invalid_source_url_is_rejected():
     doc = KnowledgeDocument("bad-url", "Bitcoin", "Bitcoin protocol", "file:///tmp/source")
     with pytest.raises(ValueError, match="source_url"):
         KnowledgeBase([doc])
+
+
+def test_every_corpus_entry_has_source_provenance():
+    kb = KnowledgeBase.from_jsonl(DATA)
+    assert len(kb.documents) >= 20
+    for doc in kb.documents:
+        assert doc.publisher and doc.publisher != "unknown"
+        assert doc.retrieved_on == "2026-11-16"
+        assert doc.license_status and doc.license_status != "unverified"
+        assert doc.topics
