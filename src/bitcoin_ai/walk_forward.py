@@ -33,8 +33,9 @@ def walk_forward_sma_backtest(
         raise BacktestError("bars must contain Bar observations")
     if any(bars[i].timestamp <= bars[i - 1].timestamp for i in range(1, len(bars))):
         raise BacktestError("Bars must have strictly increasing timestamps")
-    if any(not math.isfinite(bar.close) or bar.close <= 0 for bar in bars):
-        raise BacktestError("Bar closes must be finite and positive")
+    if any(isinstance(bar.close, bool) or not isinstance(bar.close, (int, float))
+           or not math.isfinite(bar.close) or bar.close <= 0 for bar in bars):
+        raise BacktestError("Bar closes must be finite positive numbers")
     for value, name in ((train_bars, "train_bars"), (test_bars, "test_bars")):
         if isinstance(value, bool) or not isinstance(value, int) or value < 2:
             raise BacktestError(f"{name} must be an integer >= 2")
@@ -102,6 +103,10 @@ def walk_forward_sma_backtest(
             fold_benchmark.append(market_return)
             position = next_position
 
+        # Close each independent fold explicitly so a long position is not
+        # carried across the reset boundary without paying its exit cost.
+        if position > 0:
+            fold_returns[-1] -= position * cost
         out_of_sample_returns.extend(fold_returns)
         benchmark_returns.extend(fold_benchmark)
         folds.append({
@@ -137,7 +142,7 @@ def walk_forward_sma_backtest(
         "assumptions": [
             "Each test fold starts in cash; position is carried only within that fold.",
             "Signals use completed close data and apply to the next close-to-close return.",
-            "Fees and slippage are charged on each full position change.",
+            "Fees and slippage are charged on each full position change, including fold-end liquidation.",
             "No spread, market impact, funding, taxes, or exchange outages are modeled.",
             "This historical research result is not a calibrated forecast or a guarantee.",
         ],
