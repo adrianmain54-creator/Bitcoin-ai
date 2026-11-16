@@ -78,3 +78,26 @@ def test_backtest_rejects_invalid_bar_observations(bar):
 def test_backtest_rejects_non_bar_input():
     with pytest.raises(BacktestError, match="Bar records"):
         run_sma_backtest([1, 2, 3, 4, 5], fast_window=2, slow_window=4)
+
+
+def test_metrics_include_downside_and_trade_quality_statistics():
+    from bitcoin_ai.backtesting import _metrics
+
+    metrics = _metrics(
+        [0.02, -0.01, 0.03, -0.02, 0.01],
+        [1.0, 1.02, 1.0098, 1.31274, 1.2864852, 1.29935],
+        365,
+    )
+    assert metrics["sortino_ratio"] > 0
+    assert metrics["calmar_ratio"] is not None
+    assert metrics["profit_factor"] == pytest.approx(2.0)
+    assert metrics["win_rate_pct"] == pytest.approx(60.0)
+    assert metrics["max_drawdown_pct"] < 0
+
+
+def test_metrics_report_undefined_ratios_without_losses_or_drawdown():
+    from bitcoin_ai.backtesting import _metrics
+
+    metrics = _metrics([0.01, 0.02], [1.0, 1.01, 1.0302], 365)
+    assert metrics["profit_factor"] is None
+    assert metrics["calmar_ratio"] is None
