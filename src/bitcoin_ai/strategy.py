@@ -63,10 +63,18 @@ def generate_signal(
     latest = values[-1]
     if fast > slow and latest > slow:
         target = float(max_allocation)
-        action = "buy" if current_allocation < target - 1e-9 else "hold"
+        if current_allocation < target - 1e-9:
+            action = "buy"
+            reason = "Bullish trend confirmed; increase exposure to the configured cap."
+        elif current_allocation > target + 1e-9:
+            action = "sell"
+            reason = "Bullish trend remains valid, but current exposure exceeds the configured cap."
+        else:
+            action = "hold"
+            reason = "Bullish trend remains valid; target exposure is already reached."
         return TradingSignal(
             action=action, target_allocation=target,
-            reason="Bullish trend confirmed; increase exposure to the configured cap." if action == "buy" else "Bullish trend remains valid; target exposure is already reached.",
+            reason=reason,
             fast_sma=fast, slow_sma=slow, close=latest,
         )
     return TradingSignal(
