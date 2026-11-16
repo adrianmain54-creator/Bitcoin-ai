@@ -80,3 +80,14 @@ def test_topic_metadata_disambiguates_specific_bitcoin_concepts():
     result = kb.search("How does a mnemonic phrase generate a wallet seed?")
     assert result
     assert result[0].document.id == "btc-bip39-mnemonics"
+
+
+def test_tokenizer_removes_stopwords_before_plural_normalization():
+    from bitcoin_ai.knowledge import tokenize
+
+    tokens = tokenize("Does Bitcoin transactions consume UTXOs?")
+    assert "does" not in tokens
+    assert "doe" not in tokens
+    assert "transaction" in tokens
+    assert "consume" in tokens
+    assert "utxo" in tokens
