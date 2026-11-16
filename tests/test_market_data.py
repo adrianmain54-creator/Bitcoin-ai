@@ -27,12 +27,14 @@ def candle(open_ms, close, close_ms):
 
 
 def test_only_completed_candles_are_returned():
-    rows = [candle(0, 100, 299_999), candle(300_000, 101, 599_999),
-            candle(600_000, 102, 899_999)]
+    base_ms = int(NOW.timestamp() * 1000) - 600_000
+    rows = [candle(base_ms, 100, base_ms + 299_999),
+            candle(base_ms + 300_000, 101, base_ms + 599_999),
+            candle(base_ms + 600_000, 102, base_ms + 899_999)]
     client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
     closes, observed = client.completed_closes(now=NOW)
     assert closes == [100.0, 101.0]
-    assert observed == datetime.fromtimestamp(599_999 / 1000, timezone.utc)
+    assert observed == datetime.fromtimestamp((base_ms + 599_999) / 1000, timezone.utc)
 
 
 def test_kraken_fallback_is_used_when_binance_is_blocked():
