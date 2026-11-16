@@ -39,17 +39,18 @@ def run_paper_cycle(
     blocks execution. A risk halt requests a simulated move to cash, while normal
     strategy changes pass through exposure and cooldown gates.
     """
-    signal = generate_signal(
-        closes,
-        fast_window=fast_window,
-        slow_window=slow_window,
-        max_allocation=limits.max_allocation,
-    )
     price = float(closes[-1])
     equity = account.equity(price)
     if equity <= 0:
         raise ValueError("paper account equity must be positive")
     current_allocation = (account.btc * price) / equity
+    signal = generate_signal(
+        closes,
+        fast_window=fast_window,
+        slow_window=slow_window,
+        max_allocation=limits.max_allocation,
+        current_allocation=current_allocation,
+    )
 
     decision = evaluate_risk(
         requested_allocation=signal.target_allocation,
