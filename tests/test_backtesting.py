@@ -56,8 +56,10 @@ def test_csv_loader_rejects_duplicate_timestamps_and_nonpositive_close(tmp_path)
     {"periods_per_year": 0},
 ])
 def test_backtest_rejects_nonfinite_or_wrongly_typed_parameters(kwargs):
+    params = {"fast_window": 2, "slow_window": 4}
+    params.update(kwargs)
     with pytest.raises(BacktestError):
-        run_sma_backtest(sample_bars(), fast_window=2, slow_window=4, **kwargs)
+        run_sma_backtest(sample_bars(), **params)
 
 
 @pytest.mark.parametrize("bar", [
