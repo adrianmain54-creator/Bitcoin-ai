@@ -14,11 +14,22 @@ _STOPWORDS = {
 }
 
 
+def _normalize_token(token: str) -> str:
+    """Normalize common English plurals so queries match singular source wording."""
+    if len(token) > 5 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 5 and token.endswith(("sses", "xes", "ches", "shes", "zes")):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith(("ss", "us", "is")):
+        return token[:-1]
+    return token
+
+
 def tokenize(text: str) -> list[str]:
     """Normalize prose into searchable terms without external dependencies."""
     return [
-        token for token in re.findall(r"[a-z0-9]+", text.lower())
-        if token not in _STOPWORDS
+        normalized for raw in re.findall(r"[a-z0-9]+", text.lower())
+        if (normalized := _normalize_token(raw)) not in _STOPWORDS
     ]
 
 
