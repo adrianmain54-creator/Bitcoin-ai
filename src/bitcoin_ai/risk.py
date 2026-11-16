@@ -80,6 +80,21 @@ def evaluate_risk(
                         (current_allocation, "current_allocation")):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
             raise RiskError(f"{name} must be between 0 and 1")
+    if not isinstance(state, RiskState):
+        raise RiskError("state must be a RiskState")
+    _validate_equity(state.day_start_equity)
+    _validate_equity(state.peak_equity)
+    if not isinstance(state.utc_day, str):
+        raise RiskError("risk state utc_day must be an ISO date")
+    try:
+        datetime.fromisoformat(state.utc_day)
+    except ValueError as exc:
+        raise RiskError("risk state utc_day must be an ISO date") from exc
+    if not isinstance(state.halted, bool):
+        raise RiskError("risk state halted flag must be boolean")
+    if state.last_trade_at is not None:
+        _utc(state.last_trade_at)
+
     current_time = _utc(now)
     observation_time = _utc(observed_at)
     if observation_time > current_time:
