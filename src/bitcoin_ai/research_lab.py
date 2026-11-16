@@ -146,6 +146,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     closes = [float(b.close) for b in bars]
     cost = (fee_bps + slippage_bps) / 10000
     cursor, folds, oos, benchmark = train_bars, [], [], []
+    regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
+    regime_lookback = min(20, max(3, train_bars - 1))
     while cursor + test_bars < len(bars):
         scored = []
         for family, lookback in normalized:
@@ -168,6 +170,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         # Include training history so the first test signal has sufficient lookback.
         fold_returns = _simulate(closes, test_start, test_end, family, lookback, cost)
         market_returns = [closes[i + 1] / closes[i] - 1 for i in range(test_start, test_end)]
+        for i in range(test_start, test_end):
+            label = classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
+            regime_counts[label] += 1
         oos.extend(fold_returns)
         benchmark.extend(market_returns)
         folds.append({
@@ -183,11 +188,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         cursor += step
     if not folds:
         raise BacktestError("Not enough bars for one complete train/test fold")
-    regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
-    regime_lookback = min(20, max(3, train_bars - 1))
-    for i in range(train_bars, min(len(bars) - 1, train_bars + len(oos))):
-        regime = classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
-        regime_counts[regime] += 1
     report = {
         "method": "multi-family rolling walk-forward with block bootstrap",
         "families": sorted({family for family, _ in normalized}),
