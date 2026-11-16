@@ -25,9 +25,14 @@ class PaperStateStore:
 
     def save(self, account: PaperAccount, risk: RiskState) -> None:
         try:
-            # Validate mutable account state immediately before serialization.
-            if not isinstance(account.trades, list) or any(not isinstance(t, dict) for t in account.trades):
-                raise ValueError("trades must be a list of event objects")
+            # Reconstruct to revalidate fields that callers may have mutated since creation.
+            if not isinstance(account, PaperAccount):
+                raise ValueError("account must be a PaperAccount")
+            PaperAccount(
+                cash=account.cash, btc=account.btc, fee_bps=account.fee_bps,
+                slippage_bps=account.slippage_bps,
+                max_allocation=account.max_allocation, trades=account.trades,
+            )
             json.dumps(account.trades, allow_nan=False)
             _validate_risk_state(risk)
             payload = {
