@@ -104,23 +104,28 @@ class KnowledgeBase:
         normalized_query = " ".join(tokenize(query))
         results = []
 
-        for doc, title_terms, body_terms in self._indexed:
+        for doc, title_terms, body_terms, topic_terms in self._indexed:
             weighted_match = 0.0
             matched = 0
             for term in query_terms:
                 title_frequency = title_terms[term]
                 body_frequency = body_terms[term]
-                if title_frequency or body_frequency:
+                topic_frequency = topic_terms[term]
+                if title_frequency or body_frequency or topic_frequency:
                     matched += 1
-                    # Title hits count more than body hits; repeated terms have diminishing value.
+                    # Exact topic metadata is strong evidence; titles also outrank body text.
                     weighted_match += idf[term] * (
-                        2.0 * min(title_frequency, 2) + min(body_frequency, 3)
+                        2.0 * min(title_frequency, 2)
+                        + min(body_frequency, 3)
+                        + 2.5 * min(topic_frequency, 2)
                     )
             if not matched:
                 continue
 
-            coverage = sum(idf[t] for t in query_terms
-                           if title_terms[t] or body_terms[t]) / denominator
+            coverage = sum(
+                idf[t] for t in query_terms
+                if title_terms[t] or body_terms[t] or topic_terms[t]
+            ) / denominator
             if coverage < 0.35:
                 continue
             length_norm = math.sqrt(max(sum(body_terms.values()), 1))
