@@ -46,7 +46,9 @@ class PaperAccount:
         deducted from cash/proceeds. No order is sent to an exchange.
         """
         _validate_price(price)
-        if isinstance(target_allocation, bool) or not math.isfinite(target_allocation):
+        if (isinstance(target_allocation, bool)
+                or not isinstance(target_allocation, (int, float))
+                or not math.isfinite(target_allocation)):
             raise PaperTradingError("target_allocation must be a finite number")
         if not 0 <= target_allocation <= 1:
             raise PaperTradingError("target_allocation must be between 0 and 1")
@@ -72,7 +74,7 @@ class PaperAccount:
             fee_paid = gross * fee_rate
             self.cash -= gross + fee_paid
             self.btc += quantity
-        elif delta < -max(1e-12, equity_before * -1e-12):
+        elif delta < -max(1e-12, equity_before * 1e-12):
             side = "sell"
             execution_price = price * (1 - slip_rate)
             quantity = min(self.btc, (-delta) / price)
