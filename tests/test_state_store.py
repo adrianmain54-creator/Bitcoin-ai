@@ -89,3 +89,12 @@ def test_invalid_mutated_trade_history_cannot_be_saved(tmp_path):
         PaperStateStore(tmp_path / "state.json").save(
             account, new_risk_state(10_000, NOW)
         )
+
+
+def test_mutated_invalid_account_cannot_be_saved(tmp_path):
+    account = PaperAccount()
+    account.cash = "not-money"
+    with pytest.raises(StateStoreError):
+        PaperStateStore(tmp_path / "state.json").save(
+            account, new_risk_state(10_000, NOW)
+        )
