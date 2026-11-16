@@ -28,7 +28,9 @@ def _normalize_token(token: str) -> str:
 def tokenize(text: str) -> list[str]:
     """Normalize prose into searchable terms without external dependencies."""
     return [
-        normalized for raw in re.findall(r"[a-z0-9]+", text.lower())
+        normalized
+        for raw in re.findall(r"[a-z0-9]+", text.lower())
+        if raw not in _STOPWORDS
         if (normalized := _normalize_token(raw)) not in _STOPWORDS
     ]
 
