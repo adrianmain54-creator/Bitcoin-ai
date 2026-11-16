@@ -42,3 +42,50 @@ def test_non_finite_state_cannot_be_saved(tmp_path):
     with pytest.raises(StateStoreError):
         store.save(account, new_risk_state(10_000, NOW))
     assert not store.path.exists()
+
+
+def test_non_object_document_fails_closed(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text("[]", encoding="utf-8")
+    with pytest.raises(StateStoreError):
+        PaperStateStore(path).load()
+
+
+@pytest.mark.parametrize("trades", [None, {}, ["not-an-event"], [{"bad": float("nan")} ]])
+def test_invalid_trade_history_fails_closed(tmp_path, trades):
+    path = tmp_path / "state.json"
+    payload = {
+        "version": 1,
+        "account": {
+            "cash": 10_000, "btc": 0, "fee_bps": 10,
+            "slippage_bps": 5, "max_allocation": 0.25,
+            "trades": trades,
+        },
+        "risk": {
+            "utc_day": "2026-01-01", "day_start_equity": 10_000,
+            "peak_equity": 10_000, "last_trade_at": None, "halted": False,
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(StateStoreError):
+        PaperStateStore(path).load()
+
+
+def test_invalid_risk_day_fails_closed(tmp_path):
+    path = tmp_path / "state.json"
+    store = PaperStateStore(path)
+    store.save(PaperAccount(), new_risk_state(10_000, NOW))
+    payload = json.loads(path.read_text())
+    payload["risk"]["utc_day"] = "not-a-date"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(StateStoreError):
+        store.load()
+
+
+def test_invalid_mutated_trade_history_cannot_be_saved(tmp_path):
+    account = PaperAccount()
+    account.trades = ["not-an-event"]
+    with pytest.raises(StateStoreError):
+        PaperStateStore(tmp_path / "state.json").save(
+            account, new_risk_state(10_000, NOW)
+        )
