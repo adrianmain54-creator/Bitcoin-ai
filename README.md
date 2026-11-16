@@ -6,17 +6,18 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 
 ## What exists now
 
-- A 21-record curated Bitcoin knowledge corpus spanning fundamentals, transactions/UTXOs, mining, peer-to-peer networking, node modes, Bitcoin Core, wallet standards, SegWit, Taproot, PSBT, and Lightning.
+- A 25-record curated Bitcoin knowledge corpus spanning fundamentals, transactions/UTXOs, mining, peer-to-peer networking, node modes, Bitcoin Core, wallet standards, SegWit, Taproot, PSBT, and Lightning.
 - Per-record publisher, canonical URL, retrieval date, topics, and explicit license-review status.
 - A source register explaining why public availability is not blanket permission to copy or train on a source.
 - Deterministic IDF-weighted retrieval that gives title matches extra weight and reduces generic verb noise.
 - A retrieval-based question answering engine that returns cited excerpts and abstains when evidence is insufficient.
 - Corpus integrity checks for duplicate IDs, empty required fields, invalid source URL schemes, and missing provenance.
 - A corpus audit command reporting topic coverage, source-domain distribution, license-review status counts, and exact duplicate summaries.
+- GitHub Actions CI running the complete pytest suite on pushes and pull requests.
 - A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees, with provider, source URL, observation time, units, age, and cache status.
 - Bounded network timeouts, short in-memory caching, response validation, and explicit errors when live data is unavailable.
 - A CLI for knowledge questions and live network snapshots.
-- A 21-question benchmark covering expected top-ranked evidence and out-of-domain abstention.
+- A 25-question benchmark covering expected top-ranked evidence and out-of-domain abstention.
 - Unit tests for ranking, determinism, citations, abstention, corpus provenance, and mocked live-data behavior.
 
 This is **not yet a trained Bitcoin model**. The corpus is a compact specialist foundation, not a complete encyclopedia. The benchmark is still small and requires human review; passing it does not establish broad Bitcoin expertise. Live network data is descriptive, not a price forecast or trading signal.
