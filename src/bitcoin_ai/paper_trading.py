@@ -40,7 +40,24 @@ class PaperAccount:
 
     def equity(self, price: float) -> float:
         _validate_price(price)
+        self._validate_account_state()
         return self.cash + self.btc * price
+
+    def _validate_account_state(self) -> None:
+        values = (self.cash, self.btc, self.fee_bps, self.slippage_bps, self.max_allocation)
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) for value in values):
+            raise PaperTradingError("account state contains non-finite or non-numeric values")
+        if self.cash < 0 or self.btc < 0:
+            raise PaperTradingError("account balances cannot be negative")
+        if not 0 <= self.max_allocation <= 1:
+            raise PaperTradingError("max_allocation must be between 0 and 1")
+        if (self.fee_bps < 0 or self.slippage_bps < 0
+                or self.fee_bps >= 10_000 or self.slippage_bps >= 10_000):
+            raise PaperTradingError("fees and slippage must be in [0, 10000) bps")
+        if not isinstance(self.trades, list) or any(
+                not isinstance(event, dict) for event in self.trades):
+            raise PaperTradingError("trades must be a list of event objects")
 
     def rebalance(self, target_allocation: float, price: float) -> dict:
         """Move toward a BTC allocation target, capped by max_allocation.
