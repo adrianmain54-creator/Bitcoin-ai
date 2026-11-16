@@ -86,11 +86,27 @@ def _metrics(returns: list[float], equity: list[float], periods_per_year: float)
     for value in equity:
         peak = max(peak, value)
         max_dd = min(max_dd, value / peak - 1.0)
+    downside_deviation = math.sqrt(
+        mean(min(value, 0.0) ** 2 for value in returns)
+    ) if returns else 0.0
+    sortino = (
+        avg / downside_deviation * math.sqrt(periods_per_year)
+        if downside_deviation > 0 else 0.0
+    )
+    gross_profit = sum(value for value in returns if value > 0)
+    gross_loss = -sum(value for value in returns if value < 0)
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
+    calmar = cagr / abs(max_dd) if max_dd < 0 else None
+    win_rate = sum(value > 0 for value in returns) / len(returns)
     return {
         "total_return_pct": round(total * 100, 4),
         "cagr_pct": round(cagr * 100, 4),
         "annualized_volatility_pct": round(volatility * 100, 4),
         "sharpe_ratio": round(sharpe, 4),
+        "sortino_ratio": round(sortino, 4),
+        "calmar_ratio": round(calmar, 4) if calmar is not None else None,
+        "profit_factor": round(profit_factor, 4) if profit_factor is not None else None,
+        "win_rate_pct": round(win_rate * 100, 4),
         "max_drawdown_pct": round(max_dd * 100, 4),
     }
 
