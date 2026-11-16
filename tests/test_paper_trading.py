@@ -47,3 +47,16 @@ def test_invalid_account_risk_configuration_rejected():
 def test_non_numeric_target_rejected():
     with pytest.raises(PaperTradingError):
         PaperAccount().rebalance("0.2", 50_000)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"cash": "100"},
+    {"btc": True},
+    {"fee_bps": "10"},
+    {"slippage_bps": float("nan")},
+    {"max_allocation": True},
+    {"trades": ["not-an-event"]},
+])
+def test_invalid_account_configuration_types_rejected(kwargs):
+    with pytest.raises(PaperTradingError):
+        PaperAccount(**kwargs)
