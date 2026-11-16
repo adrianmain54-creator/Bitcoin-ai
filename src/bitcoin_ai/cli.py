@@ -11,6 +11,7 @@ from .market_data import BinanceCandleClient, MarketDataError
 from .performance import build_performance_report
 from .state_store import PaperStateStore, StateStoreError
 from .walk_forward import walk_forward_sma_backtest
+from .research_lab import run_strategy_lab
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -61,6 +62,18 @@ def main() -> None:
     walk_parser.add_argument("--slippage-bps", type=float, default=5.0)
     walk_parser.add_argument("--periods-per-year", type=float, default=365.0)
     walk_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    lab_parser = subparsers.add_parser("research-lab", help="Compare strategy families with walk-forward and bootstrap stress tests")
+    lab_parser.add_argument("--csv", type=Path, required=True, help="CSV with timestamp and close columns")
+    lab_parser.add_argument("--train-bars", type=int, default=365)
+    lab_parser.add_argument("--test-bars", type=int, default=90)
+    lab_parser.add_argument("--step-bars", type=int)
+    lab_parser.add_argument("--fee-bps", type=float, default=10.0)
+    lab_parser.add_argument("--slippage-bps", type=float, default=5.0)
+    lab_parser.add_argument("--periods-per-year", type=float, default=365.0)
+    lab_parser.add_argument("--bootstrap-trials", type=int, default=500)
+    lab_parser.add_argument("--seed", type=int, default=7)
+    lab_parser.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "ask":
@@ -133,6 +146,30 @@ def main() -> None:
             print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
             for fold in result["folds"]:
                 print(f"Fold {fold['test_start']} to {fold['test_end']}: SMA {fold['selected_fast_window']}/{fold['selected_slow_window']}")
+        return
+
+    if args.command == "research-lab":
+        try:
+            bars = load_close_csv(args.csv)
+            result = run_strategy_lab(
+                bars, train_bars=args.train_bars, test_bars=args.test_bars,
+                step_bars=args.step_bars, fee_bps=args.fee_bps,
+                slippage_bps=args.slippage_bps,
+                periods_per_year=args.periods_per_year,
+                bootstrap_trials=args.bootstrap_trials, seed=args.seed,
+            )
+        except (BacktestError, OSError, ValueError) as exc:
+            parser.exit(1, f"bitcoin-ai: strategy research failed: {exc}\\n")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print("Bitcoin AI strategy research lab (out-of-sample)")
+            print(f"Families: {', '.join(result['families'])} | folds: {result['fold_count']}")
+            print("Selected OOS:", json.dumps(result["out_of_sample_metrics"], sort_keys=True))
+            print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
+            print("Block bootstrap:", json.dumps(result["bootstrap"], sort_keys=True))
+            for fold in result["folds"]:
+                print(f"Fold {fold['test_start']} to {fold['test_end']}: {fold['selected_family']} / {fold['selected_lookback']}")
         return
 
     if args.command == "paper-run":
