@@ -33,9 +33,28 @@ def test_strategy_lab_runs_multi_family_oos_and_bootstrap():
     assert result["out_of_sample_returns"] == result["fold_count"] * 30
     assert result["bootstrap"]["trials"] == 100
     assert result["bootstrap"]["final_equity_p05"] <= result["bootstrap"]["final_equity_p95"]
+    assert sum(item["observations"] for item in result["out_of_sample_regime_metrics"].values()) == result["out_of_sample_returns"]
+    assert sum(result["training_selection_counts"].values()) == result["fold_count"]
+    assert result["out_of_sample_metrics_at_2x_cost"]["total_return_pct"] <= result["out_of_sample_metrics"]["total_return_pct"]
+    for regime in result["out_of_sample_regime_metrics"].values():
+        assert "strategy" in regime and "buy_and_hold" in regime
     for fold in result["folds"]:
         assert fold["train_end"] < fold["test_start"]
         assert fold["selected_family"] in result["families"]
+
+
+def test_strategy_lab_supports_short_sma_lookback_without_invalid_window():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 2}], bootstrap_trials=100,
+    )
+    assert result["fold_count"] > 0
+
+
+def test_strategy_lab_rejects_naive_timestamps():
+    naive = [Bar(datetime(2024, 1, 1) + timedelta(days=i), 100 + i) for i in range(150)]
+    with pytest.raises(BacktestError, match="timezone-aware"):
+        run_strategy_lab(naive, train_bars=100, test_bars=20, bootstrap_trials=100)
 
 
 def test_strategy_lab_is_deterministic_for_fixed_seed():
