@@ -11,6 +11,8 @@ import random
 from statistics import mean, pstdev
 
 from .backtesting import BacktestError, Bar, _metrics
+from .regime import classify_regime
+from .promotion import evaluate_paper_trial_eligibility
 
 
 def _equity_curve(returns):
@@ -181,7 +183,12 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         cursor += step
     if not folds:
         raise BacktestError("Not enough bars for one complete train/test fold")
-    return {
+    regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
+    regime_lookback = min(20, max(3, train_bars - 1))
+    for i in range(train_bars, min(len(bars) - 1, train_bars + len(oos))):
+        regime = classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
+        regime_counts[regime] += 1
+    report = {
         "method": "multi-family rolling walk-forward with block bootstrap",
         "families": sorted({family for family, _ in normalized}),
         "fold_count": len(folds),
@@ -190,6 +197,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "buy_and_hold_metrics": _metrics(benchmark, _equity_curve(benchmark), periods_per_year),
         "cash_metrics": _metrics([0.0] * len(oos), _equity_curve([0.0] * len(oos)), periods_per_year),
         "bootstrap": _bootstrap(oos, bootstrap_trials, seed),
+        "out_of_sample_regime_counts": regime_counts,
         "folds": folds,
         "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage; deterministic tie-break. Test data never selects parameters.",
         "limitations": [
@@ -199,3 +207,5 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
         ],
     }
+    report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
+    return report
