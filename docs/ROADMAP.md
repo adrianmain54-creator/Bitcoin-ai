@@ -16,8 +16,11 @@
 - [ ] Add content-level deduplication and complete provenance checks
 
 ## Phase 2 — Live Bitcoin data
-- [ ] Price adapter (timestamp, currency, provider, cache)
-- [ ] Block-height and mempool adapters
+- [x] Read-only BTC price, block-height, mempool, and recommended-fee adapter
+- [x] Include provider, source URL, observation time, units, age, and cache status
+- [x] Bounded timeouts, short in-memory caching, and response validation
+- [ ] Add historical market data and robust time-series storage
+- [ ] Add difficulty, hashrate, and Lightning network adapters
 - [ ] Optional Bitcoin Core RPC integration
 - [ ] Never label stale or unavailable data as live
 
