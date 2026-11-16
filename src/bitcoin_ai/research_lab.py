@@ -136,6 +136,22 @@ def _bootstrap(returns, trials, seed, block_size=5):
     }
 
 
+def _selection_score(returns, metrics):
+    """Score training candidates for risk-adjusted return and segment consistency."""
+    segment_count = min(4, len(returns))
+    segment_returns = []
+    for index in range(segment_count):
+        start = index * len(returns) // segment_count
+        end = (index + 1) * len(returns) // segment_count
+        segment_returns.append(math.prod(1.0 + value for value in returns[start:end]) - 1.0)
+    positive_share = sum(value > 0 for value in segment_returns) / segment_count
+    worst_segment_pct = min(segment_returns) * 100.0
+    drawdown_penalty = abs(metrics["max_drawdown_pct"]) / 10.0
+    worst_segment_penalty = abs(min(0.0, worst_segment_pct)) / 10.0
+    score = metrics["sortino_ratio"] - drawdown_penalty + positive_share - worst_segment_penalty
+    return score, positive_share, worst_segment_pct
+
+
 def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                      candidates=None, step_bars=None, fee_bps=10.0,
                      slippage_bps=5.0, periods_per_year=365.0,
@@ -168,10 +184,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 continue
             equity = _equity_curve(train_returns)
             metrics = _metrics(train_returns, equity, periods_per_year)
-            # Conservative deterministic score: reward risk-adjusted return,
-            # penalize deep drawdowns. Candidate choice sees training data only.
-            score = metrics["sortino_ratio"] - abs(metrics["max_drawdown_pct"]) / 10
-            scored.append((score, family, lookback, metrics))
+            # Selection sees training data only. Segment consistency rewards
+            # repeatability and penalizes a single disastrous training segment.
+            score, positive_share, worst_segment_pct = _selection_score(train_returns, metrics)
+            scored.append((score, family, lookback, metrics, positive_share, worst_segment_pct))
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
@@ -201,6 +217,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "selected_family": family, "selected_lookback": lookback,
             "training_selection_score": round(chosen[0], 4),
             "training_sortino": chosen[3]["sortino_ratio"],
+            "training_positive_segment_share": round(chosen[4], 4),
+            "training_worst_segment_return_pct": round(chosen[5], 4),
             "oos_metrics": _metrics(fold_returns, _equity_curve(fold_returns), periods_per_year),
             "oos_metrics_at_2x_cost": _metrics(stress_returns, _equity_curve(stress_returns), periods_per_year),
         })
@@ -237,7 +255,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "warning": "Selection frequency is descriptive and does not establish superiority.",
         },
         "folds": folds,
-        "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage; deterministic tie-break. Test data never selects parameters.",
+        "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage; deterministic tie-break. Training is split into up to four chronological segments. Test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
