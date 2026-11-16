@@ -10,7 +10,14 @@ import math
 import random
 from statistics import mean, pstdev
 
-from .backtesting import BacktestError, Bar, _metrics, _equity_curve
+from .backtesting import BacktestError, Bar, _metrics
+
+
+def _equity_curve(returns):
+    equity = [1.0]
+    for value in returns:
+        equity.append(equity[-1] * (1.0 + value))
+    return equity
 
 
 DEFAULT_CANDIDATES = [
