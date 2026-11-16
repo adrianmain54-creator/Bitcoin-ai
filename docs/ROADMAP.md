@@ -10,7 +10,7 @@
 ## Phase 1B — Data quality
 - [ ] Verify redistribution rights and record per-document license
 - [ ] Add canonical source snapshots and retrieval dates
-- [ ] Add a human-reviewed question/answer benchmark
+- [x] Add an initial seven-question retrieval/abstention benchmark (human review still needed)
 - [ ] Add document deduplication and provenance checks
 
 ## Phase 2 — Live Bitcoin data
