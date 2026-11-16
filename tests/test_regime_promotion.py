@@ -16,6 +16,11 @@ def test_regime_classifier_identifies_trailing_uptrend_and_is_causal():
     assert result == classify_regime(closes[:], lookback=10)
 
 
+def test_regime_classifier_validates_lookback_type_before_length_check():
+    with pytest.raises(BacktestError, match="lookback"):
+        classify_regime([100, 101, 102], lookback="bad")
+
+
 def test_regime_classifier_identifies_range_and_high_volatility():
     flat = [100.0] * 25
     assert classify_regime(flat, lookback=10)["regime"] == "range"
