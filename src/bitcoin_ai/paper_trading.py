@@ -24,8 +24,11 @@ class PaperAccount:
 
     def __post_init__(self) -> None:
         values = (self.cash, self.btc, self.fee_bps, self.slippage_bps, self.max_allocation)
-        if not all(math.isfinite(value) for value in values):
-            raise PaperTradingError("account values must be finite")
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) for value in values):
+            raise PaperTradingError("account values must be finite numbers")
+        if not isinstance(self.trades, list) or any(not isinstance(event, dict) for event in self.trades):
+            raise PaperTradingError("trades must be a list of event objects")
         if self.cash < 0 or self.btc < 0:
             raise PaperTradingError("cash and BTC balances cannot be negative")
         if self.fee_bps < 0 or self.slippage_bps < 0:
