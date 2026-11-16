@@ -6,6 +6,7 @@
 - [x] Deterministic IDF-weighted retrieval with title weighting
 - [x] Retrieval with citations and conservative abstention
 - [x] Corpus integrity and provenance checks
+- [x] Abstain on broad common single-term queries and weak partial evidence
 - [x] Unit tests for ranking, determinism, citations, and abstention
 
 ## Phase 1B — Knowledge quality
