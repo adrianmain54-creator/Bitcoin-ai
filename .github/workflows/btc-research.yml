@@ -1,0 +1,83 @@
+name: BTC Historical Research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Bitcoin AI
+        run: python -m pip install .
+      - name: Download completed BTC/USDT daily candles
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import time
+          import urllib.request
+          from datetime import datetime, timezone
+          
+          url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000"
+          request = urllib.request.Request(url, headers={"User-Agent": "bitcoin-ai-research/1.0"})
+          with urllib.request.urlopen(request, timeout=20) as response:
+              rows = json.loads(response.read().decode("utf-8"))
+          now_ms = int(time.time() * 1000)
+          completed = [row for row in rows if int(row[6]) < now_ms]
+          if len(completed) < 456:
+              raise SystemExit(f"Need at least 456 completed daily candles; received {len(completed)}")
+          with open("btc-daily.csv", "w", newline="", encoding="utf-8") as handle:
+              writer = csv.writer(handle)
+              writer.writerow(["timestamp", "close"])
+              for row in completed:
+                  stamp = datetime.fromtimestamp(int(row[6]) / 1000, timezone.utc).isoformat()
+                  writer.writerow([stamp, row[4]])
+          print(f"Saved {len(completed)} completed daily candles.")
+          print(f"First close: {completed[0][4]} | Latest close: {completed[-1][4]}")
+          PY
+      - name: Run walk-forward research and robustness checks
+        run: |
+          bitcoin-ai research-lab --csv btc-daily.csv --train-bars 365 --test-bars 90 --bootstrap-trials 1000 --json > research-report.json
+      - name: Publish research summary
+        run: |
+          python - <<'PY'
+          import json
+          report = json.load(open("research-report.json", encoding="utf-8"))
+          eligibility = report["paper_trial_eligibility"]
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
+              out.write("# Bitcoin AI — BTC historical research\\n\\n")
+              out.write(f"- Folds: **{report['fold_count']}**\\n")
+              out.write(f"- Out-of-sample returns: **{report['out_of_sample_returns']}**\\n")
+              out.write(f"- Strategy OOS: **{report['out_of_sample_metrics']['total_return_pct']}%**\\n")
+              out.write(f"- Buy-and-hold OOS: **{report['buy_and_hold_metrics']['total_return_pct']}%**\\n")
+              out.write(f"- Strategy at 2x estimated costs: **{report['out_of_sample_metrics_at_2x_cost']['total_return_pct']}%**\\n")
+              out.write(f"- Paper-forward trial eligibility: **{'ELIGIBLE' if eligibility['eligible'] else 'NOT ELIGIBLE'}**\\n\\n")
+              out.write("## Out-of-sample performance by market regime\\n\\n")
+              out.write("| Regime | Bars | Strategy | Buy & hold |\\n|---|---:|---:|---:|\\n")
+              for regime, metrics in report["out_of_sample_regime_metrics"].items():
+                  out.write(f"| {regime} | {metrics['observations']} | {metrics['strategy']['total_return_pct']}% | {metrics['buy_and_hold']['total_return_pct']}% |\\n")
+              if eligibility["reasons"]:
+                  out.write("\\n## Promotion gate findings\\n")
+                  for reason in eligibility["reasons"]:
+                      out.write(f"- {reason}\\n")
+              out.write("\\nResearch only. Historical performance is not a forecast. No exchange orders are submitted.\\n")
+          PY
+      - name: Upload full research report and source candles
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitcoin-ai-btc-research
+          path: |
+            research-report.json
+            btc-daily.csv
+          retention-days: 30
