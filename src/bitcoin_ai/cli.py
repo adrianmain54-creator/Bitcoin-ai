@@ -7,6 +7,7 @@ from .corpus_audit import build_corpus_report, format_corpus_report
 from .backtesting import BacktestError, load_close_csv, run_sma_backtest
 from .knowledge import KnowledgeBase, BitcoinAnswerEngine
 from .paper_service import PaperService
+from .state_store import StateStoreError
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -99,7 +100,7 @@ def main() -> None:
             service.run_forever()
         except KeyboardInterrupt:
             print("\\nBitcoin AI paper trader stopped. State was saved after the last completed cycle.")
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, StateStoreError) as exc:
             parser.exit(1, f"bitcoin-ai: paper trader stopped safely: {exc}\\n")
         return
 
