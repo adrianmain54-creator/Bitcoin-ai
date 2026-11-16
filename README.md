@@ -16,7 +16,8 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 - GitHub Actions CI running the complete pytest suite on pushes and pull requests.
 - A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees, with provider, source URL, observation time, units, age, and cache status.
 - Bounded network timeouts, short in-memory caching, response validation, and explicit errors when live data is unavailable.
-- A CLI for knowledge questions and live network snapshots.
+- A CLI for knowledge questions, live network snapshots, corpus audits, and historical backtests.
+- A CSV-based SMA research backtester with next-bar signal application, configurable fee/slippage assumptions, buy-and-hold comparison, annualized metrics, and drawdown reporting.
 - A 25-question benchmark covering expected top-ranked evidence and out-of-domain abstention.
 - Unit tests for ranking, determinism, citations, abstention, corpus provenance, and mocked live-data behavior.
 
@@ -46,9 +47,9 @@ The knowledge-base demo works offline. The `network` command requires internet a
 ```text
 bitcoin-ai/
 ├── data/knowledge/       # Curated corpus and versioned benchmark
-├── docs/                 # Architecture, roadmap, safety, source register
+├── docs/                 # Architecture, roadmap, safety, source register, backtesting
 ├── src/bitcoin_ai/
-│   ├── cli.py            # Command-line interface
+│   ├── backtesting.py   # Historical SMA research backtester\n│   ├── cli.py            # Command-line interface
 │   ├── data_sources.py   # Read-only live Bitcoin data and provenance
 │   ├── knowledge.py      # Retrieval and citation logic
 │   ├── models.py         # Future model integration boundary
