@@ -10,6 +10,7 @@ _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
     "how", "in", "is", "it", "of", "on", "or", "that", "the", "to",
     "what", "when", "why", "with", "does", "do", "can", "use",
+    "manage", "manages", "managing", "support", "supports",
 }
 
 
