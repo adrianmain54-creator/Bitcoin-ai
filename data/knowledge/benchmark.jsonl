@@ -19,3 +19,7 @@
 {"id":"bench-lightning-invoice","question":"What information does a Lightning invoice communicate?","expected_source_ids":["btc-bolt-11"],"should_abstain":false}
 {"id":"bench-lightning-offers","question":"What are reusable Lightning offers compared with one-time invoices?","expected_source_ids":["btc-bolt-12"],"should_abstain":false}
 {"id":"bench-out-of-domain-health","question":"What are the symptoms and treatment of seasonal allergies?","expected_source_ids":[],"should_abstain":true}
+{"id":"bench-fees-change","question":"How does a Bitcoin transaction fee relate to its inputs, outputs and change output?","expected_source_ids":["btc-dev-guide-fees-change"],"should_abstain":false}
+{"id":"bench-coinbase-maturity","question":"Why must a miner wait 100 blocks before spending a coinbase reward?","expected_source_ids":["btc-dev-guide-coinbase-maturity"],"should_abstain":false}
+{"id":"bench-bolt3-commitments","question":"What transaction and script formats does Lightning BOLT 3 specify?","expected_source_ids":["btc-bolt03-transactions"],"should_abstain":false}
+{"id":"bench-bolt5-onchain","question":"Why must a Lightning node monitor on-chain channel closes and reorganizations?","expected_source_ids":["btc-bolt05-onchain"],"should_abstain":false}
