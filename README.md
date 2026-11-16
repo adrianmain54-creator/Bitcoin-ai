@@ -2,7 +2,7 @@
 
 A Bitcoin-native intelligence project built from a transparent, testable foundation.
 
-**Current stage:** Phase 1 — foundation. This release is deliberately local-first and does not require paid APIs, API keys, hosted inference, or a GPU.
+**Current stage:** Phase 1 foundation plus the first read-only Phase 2 data adapter. Core features run without paid APIs, API keys, hosted inference, or a GPU.
 
 ## What exists now
 
@@ -11,12 +11,15 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 - A retrieval-based question answering engine that returns cited excerpts.
 - Conservative abstention when evidence is missing.
 - Corpus integrity checks for duplicate IDs, empty required fields, and non-HTTP(S) source URLs.
-- A CLI for asking questions.
+- A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees.
+- Per-observation provider, source URL, observation time, units, age, and cache status.
+- Short in-memory caching, bounded network timeouts, response validation, and explicit failure when live data is unavailable.
+- A CLI for knowledge questions and live network snapshots.
 - A seven-question benchmark covering expected top-ranked evidence and out-of-domain abstention.
-- Unit tests for ranking, deterministic results, citations, abstention, and corpus validation.
+- Unit tests for ranking, determinism, citations, abstention, corpus validation, and mocked live-data behavior.
 - An optional model-adapter boundary for future open-weight models.
 
-This is **not yet a trained Bitcoin model**. The first milestone builds reliable data, evaluation, and interfaces before fine-tuning any model. The starter corpus is intentionally small; passing its benchmark does not establish broad Bitcoin expertise.
+This is **not yet a trained Bitcoin model**. The starter knowledge corpus is intentionally small; passing its benchmark does not establish broad Bitcoin expertise. Live data is descriptive, not a price forecast or trading signal.
 
 ## Quick start
 
@@ -31,10 +34,11 @@ source .venv/bin/activate
 
 python -m pip install -e ".[dev]"
 bitcoin-ai ask "What is proof of work?"
+bitcoin-ai network --currency USD
 pytest
 ```
 
-No network connection is needed for the knowledge-base demo.
+The knowledge-base demo works offline. The `network` command requires an internet connection and uses the public Mempool.space REST API. Respect its rate limits; this client caches each endpoint briefly and does not retry aggressively.
 
 ## Project structure
 
@@ -44,6 +48,7 @@ bitcoin-ai/
 ├── docs/                 # Architecture and roadmap
 ├── src/bitcoin_ai/
 │   ├── cli.py            # Command-line interface
+│   ├── data_sources.py   # Read-only live Bitcoin data and provenance
 │   ├── knowledge.py      # Retrieval and citation logic
 │   ├── models.py         # Future model integration boundary
 │   └── schemas.py        # Typed data structures
@@ -64,7 +69,8 @@ bitcoin-ai/
 - [x] Phase 1A: repository scaffold, local retrieval, CLI, tests
 - [ ] Phase 1B: expand curated corpus with source URLs, dates, and license metadata
 - [x] Phase 1C: initial retrieval benchmark and top-ranked evidence checks (human review and expansion still needed)
-- [ ] Phase 2: live public Bitcoin data adapters with caching and provenance
+- [x] Phase 2A: read-only BTC price, block height, mempool, and fee adapter with provenance and caching
+- [ ] Phase 2B: historical market data, additional network metrics, and robust time-series storage
 - [ ] Phase 3: agent tools with strict permissions and verification
 - [ ] Phase 4: compare suitable open-weight base models
 - [ ] Phase 5: create a licensed Bitcoin instruction dataset and fine-tune using LoRA/QLoRA
