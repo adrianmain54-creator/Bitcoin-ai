@@ -21,6 +21,9 @@ def test_answer_includes_source_citations():
     assert result["abstained"] is False
     assert result["sources"]
     assert result["sources"][0]["url"].startswith("https://")
+    assert result["sources"][0]["publisher"]
+    assert result["sources"][0]["retrieved_on"] == "2026-11-16"
+    assert result["sources"][0]["license_status"]
 
 
 def test_engine_abstains_on_unrelated_question():
