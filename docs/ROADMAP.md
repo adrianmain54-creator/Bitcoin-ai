@@ -26,6 +26,8 @@
 - [ ] No wallet signing, custody, or trading execution
 
 ## Phase 4–6 — Model development
+- [x] Document staged Bitcoin knowledge, dataset, and evaluation training plan
+- [x] Define research-only trading risk controls and paper-trading boundary
 - [ ] Select an open-weight base model by license, hardware needs, and benchmark score
 - [ ] Build high-quality licensed Bitcoin instruction data
 - [ ] Fine-tune with LoRA/QLoRA where compute permits
