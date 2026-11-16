@@ -152,6 +152,10 @@ class BitcoinAnswerEngine:
                 "url": doc.source_url,
                 "score": match.score,
                 "license": doc.license,
+                "license_status": doc.license_status,
+                "publisher": doc.publisher,
+                "retrieved_on": doc.retrieved_on,
+                "topics": list(doc.topics),
             })
 
         answer = (
