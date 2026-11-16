@@ -20,36 +20,74 @@ jobs:
           cache: pip
       - name: Install Bitcoin AI
         run: python -m pip install .
-      - name: Download completed BTC/USD daily candles from Kraken
+      - name: Download long-history BTC/USDT daily candles from Binance public archive
         run: |
           python - <<'PY'
           import csv
-          import json
+          import io
           import time
           import urllib.request
+          import zipfile
           from datetime import datetime, timezone
           
-          url = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440"
-          request = urllib.request.Request(url, headers={"User-Agent": "bitcoin-ai-research/1.0"})
-          with urllib.request.urlopen(request, timeout=30) as response:
-              payload = json.loads(response.read().decode("utf-8"))
-          if payload.get("error"):
-              raise SystemExit(f"Kraken API error: {payload['error']}")
-          result = payload["result"]
-          pair_key = next(key for key in result if key != "last")
-          rows = result[pair_key]
-          now_s = int(time.time())
-          completed = [row for row in rows if int(row[0]) + 86400 < now_s]
-          if len(completed) < 456:
-              raise SystemExit(f"Need at least 456 completed daily candles; Kraken returned {len(completed)}")
+          base = "https://data.binance.vision/data/spot"
+          now = datetime.now(timezone.utc)
+          first_year, first_month = 2017, 8
+          records = {}
+          
+          def fetch_archive(kind, period):
+              name = f"BTCUSDT-1d-{period}.zip"
+              url = f"{base}/{kind}/klines/BTCUSDT/1d/{name}"
+              request = urllib.request.Request(url, headers={"User-Agent": "bitcoin-ai-research/1.0"})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  payload = response.read()
+              with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                  csv_names = [item for item in archive.namelist() if item.lower().endswith(".csv")]
+                  if not csv_names:
+                      raise RuntimeError(f"No CSV found in {name}")
+                  with archive.open(csv_names[0]) as source:
+                      for row in csv.reader(io.TextIOWrapper(source, encoding="utf-8")):
+                          if not row or not row[0].strip().isdigit():
+                              continue  # skip optional header
+                          open_ms = int(row[0])
+                          close_ms = int(row[6]) if len(row) > 6 else open_ms + 86_400_000 - 1
+                          if close_ms >= int(now.timestamp() * 1000):
+                              continue  # never include an unfinished daily candle
+                          close = float(row[4])
+                          if close > 0:
+                              records[open_ms] = close
+          
+          # Full annual archives keep the number of downloads small.
+          for year in range(first_year + 1, now.year):
+              try:
+                  fetch_archive("annual", str(year))
+                  print(f"Downloaded annual archive: {year}")
+              except Exception as exc:
+                  print(f"Annual archive {year} unavailable ({exc}); falling back to monthly files.")
+                  for month in range(1, 13):
+                      fetch_archive("monthly", f"{year}-{month:02d}")
+          
+          # 2017 begins partway through the year; current year uses completed months.
+          for year, months in (
+              (first_year, range(first_month, 13)),
+              (now.year, range(1, now.month)),
+          ):
+              for month in months:
+                  fetch_archive("monthly", f"{year}-{month:02d}")
+          
+          ordered = sorted(records.items())
+          if len(ordered) < 906:
+              raise SystemExit(f"Need at least 906 completed daily candles for six 90-bar OOS folds; found {len(ordered)}")
+          
           with open("btc-daily.csv", "w", newline="", encoding="utf-8") as handle:
               writer = csv.writer(handle)
               writer.writerow(["timestamp", "close"])
-              for row in completed:
-                  stamp = datetime.fromtimestamp(int(row[0]), timezone.utc).isoformat()
-                  writer.writerow([stamp, row[4]])
-          print(f"Saved {len(completed)} completed Kraken BTC/USD daily candles.")
-          print(f"First close: {completed[0][4]} | Latest close: {completed[-1][4]}")
+              for open_ms, close in ordered:
+                  stamp = datetime.fromtimestamp(open_ms / 1000, timezone.utc).isoformat()
+                  writer.writerow([stamp, close])
+          
+          print(f"Saved {len(ordered)} completed Binance BTC/USDT daily candles.")
+          print(f"History: {datetime.fromtimestamp(ordered[0][0] / 1000, timezone.utc).date()} to {datetime.fromtimestamp(ordered[-1][0] / 1000, timezone.utc).date()}")
           PY
       - name: Run walk-forward research and robustness checks
         run: |
