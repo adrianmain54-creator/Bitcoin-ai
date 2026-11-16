@@ -31,13 +31,21 @@
 - [ ] Optional Bitcoin Core RPC integration
 - [ ] Never label stale or unavailable data as live
 
-## Phase 3 — Agent
+## Phase 3 — Autonomous paper trader
+- [x] Explainable long/cash SMA trend signal baseline
+- [x] Independent risk gates for exposure, daily loss, drawdown, stale data, cooldown, and kill switch
+- [ ] Public historical/live candle ingestion with strict completed-candle and freshness validation
+- [ ] Durable paper-trading runner with atomic state persistence and restart recovery
+- [ ] Monitoring, structured logs, and alerts
+- [ ] Walk-forward and forward paper evaluation across market regimes
+
+## Phase 4 — Agent
 - [ ] Tool registry with explicit allowlists
 - [ ] Read-only tools first
 - [ ] Tool output validation and audit log
 - [ ] No wallet signing, custody, or trading execution
 
-## Phase 4–6 — Model development
+## Phase 5–7 — Model development
 - [x] Document staged Bitcoin knowledge, dataset, and evaluation training plan
 - [x] Define research-only trading risk controls and paper-trading boundary
 - [ ] Select an open-weight base model by license, hardware needs, and benchmark score
