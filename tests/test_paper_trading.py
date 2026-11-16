@@ -60,3 +60,18 @@ def test_non_numeric_target_rejected():
 def test_invalid_account_configuration_types_rejected(kwargs):
     with pytest.raises(PaperTradingError):
         PaperAccount(**kwargs)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("cash", float("nan")),
+    ("btc", -0.1),
+    ("fee_bps", float("inf")),
+    ("slippage_bps", -1),
+    ("max_allocation", 1.5),
+    ("trades", [None]),
+])
+def test_mutated_account_state_is_rejected_before_valuation(field, value):
+    account = PaperAccount()
+    setattr(account, field, value)
+    with pytest.raises(PaperTradingError):
+        account.equity(50_000)
