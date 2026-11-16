@@ -17,7 +17,7 @@
 - [x] Expand retrieval benchmark from 7 to 21 questions and assert expected evidence ranks first
 - [ ] Human-review benchmark answers and add held-out questions written independently of corpus summaries
 - [ ] Verify remaining source-document redistribution rights before copying source text or creating training examples
-- [ ] Add content-level deduplication, source revision hashes, and scheduled freshness checks
+- [x] Add exact-summary deduplication audit and topic/source/license coverage report\n- [ ] Add source revision hashes and scheduled freshness checks
 
 ## Phase 2 — Live Bitcoin data
 - [x] Read-only BTC price, block-height, mempool, and recommended-fee adapter
