@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import math
 
 from .paper_trading import PaperAccount
 from .risk import RiskDecision, RiskLimits, RiskState, evaluate_risk
@@ -39,7 +40,13 @@ def run_paper_cycle(
     blocks execution. A risk halt requests a simulated move to cash, while normal
     strategy changes pass through exposure and cooldown gates.
     """
-    price = float(closes[-1])
+    if not isinstance(closes, (list, tuple)) or not closes:
+        raise ValueError("closes must be a non-empty list or tuple")
+    latest = closes[-1]
+    if (isinstance(latest, bool) or not isinstance(latest, (int, float))
+            or not math.isfinite(latest) or latest <= 0):
+        raise ValueError("latest close must be a finite positive number")
+    price = float(latest)
     equity = account.equity(price)
     if equity <= 0:
         raise ValueError("paper account equity must be positive")
