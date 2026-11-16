@@ -1,0 +1,7 @@
+{"id":"bench-mining-proof-of-work","question":"How does mining use proof of work?","expected_source_ids":["btc-dev-guide-mining"],"should_abstain":false}
+{"id":"bench-blockchain-validation","question":"What does the Bitcoin blockchain record and how do nodes validate it?","expected_source_ids":["btc-dev-guide-chain"],"should_abstain":false}
+{"id":"bench-wallet-keys","question":"What does a Bitcoin wallet manage?","expected_source_ids":["btc-dev-guide-wallets"],"should_abstain":false}
+{"id":"bench-bip-purpose","question":"What are Bitcoin Improvement Proposals used for?","expected_source_ids":["btc-bips"],"should_abstain":false}
+{"id":"bench-whitepaper-timestamping","question":"How are Bitcoin transactions timestamped?","expected_source_ids":["btc-whitepaper-p2p"],"should_abstain":false}
+{"id":"bench-unrelated-cooking","question":"How do I bake a chocolate cake?","expected_source_ids":[],"should_abstain":true}
+{"id":"bench-unrelated-travel","question":"What is the best hotel in Tokyo?","expected_source_ids":[],"should_abstain":true}
