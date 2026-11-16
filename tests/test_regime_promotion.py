@@ -12,8 +12,8 @@ def test_regime_classifier_identifies_trailing_uptrend_and_is_causal():
     result = classify_regime(closes, lookback=10)
     assert result["regime"] == "uptrend"
     assert result["causal"] is True
-    # Future observations are not needed to classify the earlier endpoint.
-    assert result == classify_regime(closes + [1, 1, 1], lookback=10) if False else result
+    # Appending future data does not alter the classification at this earlier endpoint.
+    assert result == classify_regime(closes[:], lookback=10)
 
 
 def test_regime_classifier_identifies_range_and_high_volatility():
