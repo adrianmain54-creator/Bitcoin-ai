@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .data_sources import DataSourceError, MempoolSpaceClient
 from .corpus_audit import build_corpus_report, format_corpus_report
+from .backtesting import BacktestError, load_close_csv, run_sma_backtest
 from .knowledge import KnowledgeBase, BitcoinAnswerEngine
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
@@ -27,6 +28,14 @@ def main() -> None:
     )
     network_parser.add_argument("--currency", default="USD", help="Three-letter currency code")
     network_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    backtest_parser = subparsers.add_parser("backtest", help="Research-test an SMA strategy on historical close-price CSV data")
+    backtest_parser.add_argument("--csv", type=Path, required=True, help="CSV with timestamp and close columns")
+    backtest_parser.add_argument("--fast-window", type=int, default=10)
+    backtest_parser.add_argument("--slow-window", type=int, default=30)
+    backtest_parser.add_argument("--fee-bps", type=float, default=10.0, help="Estimated fee per position change, in basis points")
+    backtest_parser.add_argument("--slippage-bps", type=float, default=5.0, help="Estimated slippage per position change, in basis points")
+    backtest_parser.add_argument("--periods-per-year", type=float, default=365.0, help="Use 365 for daily bars, 8760 for hourly bars")
+    backtest_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args()
 
     if args.command == "ask":
@@ -52,6 +61,27 @@ def main() -> None:
             print(json.dumps(report, indent=2))
         else:
             print(format_corpus_report(report))
+        return
+
+    if args.command == "backtest":
+        try:
+            bars = load_close_csv(args.csv)
+            result = run_sma_backtest(
+                bars, fast_window=args.fast_window, slow_window=args.slow_window,
+                fee_bps=args.fee_bps, slippage_bps=args.slippage_bps,
+                periods_per_year=args.periods_per_year,
+            )
+        except (BacktestError, OSError) as exc:
+            parser.exit(1, f"bitcoin-ai: backtest failed: {exc}\\n")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Historical BTC research backtest: {result['strategy']}")
+            print(f"Period: {result['start']} to {result['end']} ({result['bars_in_test']} returns)")
+            print(f"Costs: {args.fee_bps:g} bps fee + {args.slippage_bps:g} bps slippage per turnover")
+            print("Strategy:", json.dumps(result["strategy_metrics"], sort_keys=True))
+            print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
+            print("Limitations: " + " ".join(result["limitations"]))
         return
 
     if args.command == "network":
