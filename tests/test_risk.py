@@ -73,3 +73,15 @@ def test_cooldown_blocks_rebalance_but_allows_hold():
         limits=RiskLimits(cooldown_seconds=900),
     )
     assert not result.allowed and result.target_allocation == 0
+
+def test_stale_data_does_not_change_daily_or_peak_risk_accounting():
+    risk_state = state()
+    risk_state.day_start_equity = 9_000
+    risk_state.peak_equity = 11_000
+    before = (risk_state.utc_day, risk_state.day_start_equity, risk_state.peak_equity)
+    result = evaluate_risk(
+        requested_allocation=0.2, current_allocation=0.1, equity=8_000,
+        state=risk_state, observed_at=NOW - timedelta(minutes=10), now=NOW,
+    )
+    assert not result.allowed
+    assert (risk_state.utc_day, risk_state.day_start_equity, risk_state.peak_equity) == before
