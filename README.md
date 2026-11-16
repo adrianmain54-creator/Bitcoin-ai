@@ -13,7 +13,7 @@ A Bitcoin-native intelligence and automated-trading research project built from 
 - A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees, with provenance and bounded caching.
 - A CSV-based SMA research backtester with configurable fee/slippage assumptions and buy-and-hold comparison.
 - A rolling walk-forward research engine that selects parameters only on prior training windows and reports non-overlapping, out-of-sample results against buy-and-hold.
-- A multi-family research lab comparing SMA trend, momentum, and breakout rules with training-only selection, downside-risk scoring, cash/buy-and-hold benchmarks, and deterministic block-bootstrap robustness ranges.
+- A multi-family research lab comparing SMA trend, momentum, and breakout rules with training-only selection, downside-risk scoring, cash/buy-and-hold benchmarks, deterministic block-bootstrap ranges, regime-conditioned out-of-sample metrics, selection-stability reporting, and a 2x execution-cost sensitivity test.
 - Causal trailing-window regime labels and a fail-closed evidence gate for eligibility to begin a separately monitored paper-forward trial. The gate never authorizes live trading.
 - A **paper-only portfolio execution simulator** that caps BTC allocation, models fees and adverse slippage, and records simulated fills.
 - An explainable SMA trend-signal baseline and independent fail-closed risk gates (20% default exposure cap, 2% daily-loss halt, 10% drawdown halt, stale-data rejection, cooldown, and kill switch).
