@@ -2,18 +2,21 @@
 
 ## Phase 1 — Foundation
 - [x] Python package and CLI
-- [x] Curated starter corpus with source metadata
+- [x] Curated Bitcoin corpus with source metadata
 - [x] Deterministic IDF-weighted retrieval with title weighting
-- [x] Retrieval with citations
-- [x] Abstention when evidence is missing
+- [x] Retrieval with citations and conservative abstention
+- [x] Corpus integrity and provenance checks
 - [x] Unit tests for ranking, determinism, citations, and abstention
 
-## Phase 1B — Data quality
-- [ ] Verify redistribution rights and record per-document license
-- [ ] Add canonical source snapshots and retrieval dates
-- [x] Add an initial seven-question retrieval benchmark with top-ranked evidence assertions (human review and expansion still needed)
-- [x] Reject duplicate document IDs, empty required fields, and invalid source URL schemes
-- [ ] Add content-level deduplication and complete provenance checks
+## Phase 1B — Knowledge quality
+- [x] Expand starter corpus from 5 to 21 original, source-linked summaries
+- [x] Cover transactions/UTXOs, peer networking, node modes, Bitcoin Core, wallet standards, SegWit, Taproot, PSBT, and Lightning
+- [x] Record publisher, canonical URL, retrieval date, topics, and license-review status per entry
+- [x] Document source-family licensing boundaries and BIP per-document license checks
+- [x] Expand retrieval benchmark from 7 to 21 questions and assert expected evidence ranks first
+- [ ] Human-review benchmark answers and add held-out questions written independently of corpus summaries
+- [ ] Verify remaining source-document redistribution rights before copying source text or creating training examples
+- [ ] Add content-level deduplication, source revision hashes, and scheduled freshness checks
 
 ## Phase 2 — Live Bitcoin data
 - [x] Read-only BTC price, block-height, mempool, and recommended-fee adapter
