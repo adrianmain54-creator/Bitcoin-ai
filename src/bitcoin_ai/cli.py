@@ -10,6 +10,7 @@ from .paper_service import PaperService
 from .market_data import BinanceCandleClient, MarketDataError
 from .performance import build_performance_report
 from .state_store import PaperStateStore, StateStoreError
+from .walk_forward import walk_forward_sma_backtest
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -50,6 +51,16 @@ def main() -> None:
     backtest_parser.add_argument("--slippage-bps", type=float, default=5.0, help="Estimated slippage per position change, in basis points")
     backtest_parser.add_argument("--periods-per-year", type=float, default=365.0, help="Use 365 for daily bars, 8760 for hourly bars")
     backtest_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    walk_parser = subparsers.add_parser("walk-forward", help="Select SMA parameters on past data and evaluate on unseen future windows")
+    walk_parser.add_argument("--csv", type=Path, required=True, help="CSV with timestamp and close columns")
+    walk_parser.add_argument("--candidates", default="5:20,10:30,12:48,20:80", help="Comma-separated fast:slow SMA candidates")
+    walk_parser.add_argument("--train-bars", type=int, default=365)
+    walk_parser.add_argument("--test-bars", type=int, default=90)
+    walk_parser.add_argument("--step-bars", type=int, help="Advance between folds; defaults to test-bars")
+    walk_parser.add_argument("--fee-bps", type=float, default=10.0)
+    walk_parser.add_argument("--slippage-bps", type=float, default=5.0)
+    walk_parser.add_argument("--periods-per-year", type=float, default=365.0)
+    walk_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args()
 
     if args.command == "ask":
@@ -96,6 +107,32 @@ def main() -> None:
             print("Strategy:", json.dumps(result["strategy_metrics"], sort_keys=True))
             print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
             print("Limitations: " + " ".join(result["limitations"]))
+        return
+
+    if args.command == "walk-forward":
+        try:
+            bars = load_close_csv(args.csv)
+            candidates = []
+            for item in args.candidates.split(","):
+                fast, slow = item.strip().split(":", 1)
+                candidates.append((int(fast), int(slow)))
+            result = walk_forward_sma_backtest(
+                bars, candidates=candidates, train_bars=args.train_bars,
+                test_bars=args.test_bars, step_bars=args.step_bars,
+                fee_bps=args.fee_bps, slippage_bps=args.slippage_bps,
+                periods_per_year=args.periods_per_year,
+            )
+        except (BacktestError, OSError, ValueError) as exc:
+            parser.exit(1, f"bitcoin-ai: walk-forward research failed: {exc}\\n")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print("Walk-forward BTC research (out-of-sample only)")
+            print(f"Folds: {result['fold_count']} | OOS returns: {result['out_of_sample_returns']}")
+            print("Strategy:", json.dumps(result["out_of_sample_metrics"], sort_keys=True))
+            print("Buy & hold:", json.dumps(result["buy_and_hold_metrics"], sort_keys=True))
+            for fold in result["folds"]:
+                print(f"Fold {fold['test_start']} to {fold['test_end']}: SMA {fold['selected_fast_window']}/{fold['selected_slow_window']}")
         return
 
     if args.command == "paper-run":
