@@ -11,6 +11,7 @@ A Bitcoin-native intelligence project built from a transparent, testable foundat
 - A conservative response policy: it says when the local knowledge base does not contain enough evidence.
 - A CLI for asking questions.
 - Unit tests for retrieval, citations, and abstention.
+- A versioned seven-question benchmark covering source retrieval and out-of-domain abstention.
 - An optional model-adapter boundary for future open-weight models.
 
 This is **not yet a trained Bitcoin model**. The first milestone builds reliable data, evaluation, and interfaces before fine-tuning any model.
