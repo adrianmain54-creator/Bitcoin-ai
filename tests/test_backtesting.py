@@ -43,3 +43,36 @@ def test_csv_loader_rejects_duplicate_timestamps_and_nonpositive_close(tmp_path)
     invalid.write_text("timestamp,close\n2024-01-01,100\n2024-01-02,0\n2024-01-03,102\n", encoding="utf-8")
     with pytest.raises(BacktestError, match="positive"):
         load_close_csv(invalid)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"fast_window": True},
+    {"fast_window": 2.5},
+    {"slow_window": False},
+    {"fee_bps": float("nan")},
+    {"slippage_bps": float("inf")},
+    {"fee_bps": True},
+    {"periods_per_year": float("nan")},
+    {"periods_per_year": 0},
+])
+def test_backtest_rejects_nonfinite_or_wrongly_typed_parameters(kwargs):
+    with pytest.raises(BacktestError):
+        run_sma_backtest(sample_bars(), fast_window=2, slow_window=4, **kwargs)
+
+
+@pytest.mark.parametrize("bar", [
+    Bar(datetime(2024, 1, 1), 100),
+    Bar(datetime(2024, 1, 1, tzinfo=timezone.utc), float("nan")),
+    Bar(datetime(2024, 1, 1, tzinfo=timezone.utc), float("inf")),
+    Bar(datetime(2024, 1, 1, tzinfo=timezone.utc), True),
+])
+def test_backtest_rejects_invalid_bar_observations(bar):
+    bars = sample_bars()
+    bars[0] = bar
+    with pytest.raises(BacktestError):
+        run_sma_backtest(bars, fast_window=2, slow_window=4)
+
+
+def test_backtest_rejects_non_bar_input():
+    with pytest.raises(BacktestError, match="Bar records"):
+        run_sma_backtest([1, 2, 3, 4, 5], fast_window=2, slow_window=4)
