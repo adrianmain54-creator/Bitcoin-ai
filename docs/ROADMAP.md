@@ -10,14 +10,17 @@
 - [x] Unit tests for ranking, determinism, citations, and abstention
 
 ## Phase 1B — Knowledge quality
-- [x] Expand starter corpus from 5 to 21 original, source-linked summaries
+- [x] Expand starter corpus from 5 to 25 original, source-linked summaries
 - [x] Cover transactions/UTXOs, peer networking, node modes, Bitcoin Core, wallet standards, SegWit, Taproot, PSBT, and Lightning
 - [x] Record publisher, canonical URL, retrieval date, topics, and license-review status per entry
 - [x] Document source-family licensing boundaries and BIP per-document license checks
-- [x] Expand retrieval benchmark from 7 to 21 questions and assert expected evidence ranks first
+- [x] Expand retrieval benchmark from 7 to 25 questions and assert expected evidence ranks first
 - [ ] Human-review benchmark answers and add held-out questions written independently of corpus summaries
 - [ ] Verify remaining source-document redistribution rights before copying source text or creating training examples
-- [x] Add exact-summary deduplication audit and topic/source/license coverage report\n- [ ] Add source revision hashes and scheduled freshness checks
+- [x] Add exact-summary deduplication audit and topic/source/license coverage report
+- [x] Add 4 source-linked summaries for fee/change mechanics, coinbase maturity, and Lightning on-chain safety
+- [x] Add 4 matching retrieval benchmark cases
+- [x] Add GitHub Actions CI for the pytest suite\n- [ ] Add source revision hashes and scheduled freshness checks
 
 ## Phase 2 — Live Bitcoin data
 - [x] Read-only BTC price, block-height, mempool, and recommended-fee adapter
