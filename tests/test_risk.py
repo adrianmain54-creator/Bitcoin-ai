@@ -85,3 +85,21 @@ def test_stale_data_does_not_change_daily_or_peak_risk_accounting():
     )
     assert not result.allowed
     assert (risk_state.utc_day, risk_state.day_start_equity, risk_state.peak_equity) == before
+
+
+@pytest.mark.parametrize("field,value", [
+    ("day_start_equity", float("nan")),
+    ("day_start_equity", 0),
+    ("peak_equity", float("inf")),
+    ("utc_day", "not-a-date"),
+    ("halted", 1),
+    ("last_trade_at", datetime(2026, 1, 2, 12, 0)),
+])
+def test_invalid_persisted_risk_state_is_rejected(field, value):
+    risk_state = state()
+    setattr(risk_state, field, value)
+    with pytest.raises(RiskError):
+        evaluate_risk(
+            requested_allocation=0.2, current_allocation=0.0, equity=10_000,
+            state=risk_state, observed_at=NOW, now=NOW,
+        )
