@@ -1,17 +1,20 @@
 import json
+import math
 import re
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
+
 from .schemas import KnowledgeDocument, RetrievedChunk
 
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
     "how", "in", "is", "it", "of", "on", "or", "that", "the", "to",
-    "what", "when", "why", "with", "does", "do", "can",
+    "what", "when", "why", "with", "does", "do", "can", "use",
 }
 
 
 def tokenize(text: str) -> list[str]:
+    """Normalize prose into searchable terms without external dependencies."""
     return [
         token for token in re.findall(r"[a-z0-9]+", text.lower())
         if token not in _STOPWORDS
@@ -19,8 +22,24 @@ def tokenize(text: str) -> list[str]:
 
 
 class KnowledgeBase:
+    """Small local corpus with deterministic, IDF-weighted retrieval."""
+
     def __init__(self, documents: list[KnowledgeDocument]):
+        ids = [doc.id for doc in documents]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Knowledge document IDs must be unique")
         self.documents = documents
+        self._indexed = []
+        self._document_frequency = Counter()
+        for doc in documents:
+            if not doc.id.strip() or not doc.title.strip() or not doc.text.strip():
+                raise ValueError("Knowledge documents require non-empty id, title, and text")
+            if not doc.source_url.startswith(("https://", "http://")):
+                raise ValueError(f"Knowledge document {doc.id!r} has an invalid source_url")
+            title_terms = Counter(tokenize(doc.title))
+            body_terms = Counter(tokenize(doc.text))
+            self._indexed.append((doc, title_terms, body_terms))
+            self._document_frequency.update(set(title_terms) | set(body_terms))
 
     @classmethod
     def from_jsonl(cls, path: str | Path) -> "KnowledgeBase":
@@ -33,27 +52,57 @@ class KnowledgeBase:
                     item = json.loads(line)
                     docs.append(KnowledgeDocument(**item))
                 except (json.JSONDecodeError, TypeError) as exc:
-                    raise ValueError(f"Invalid knowledge record on line {line_number}: {exc}") from exc
-        return cls(docs)
+                    raise ValueError(
+                        f"Invalid knowledge record on line {line_number}: {exc}"
+                    ) from exc
+        try:
+            return cls(docs)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid knowledge corpus: {exc}") from exc
 
     def search(self, query: str, limit: int = 3) -> list[RetrievedChunk]:
+        if limit <= 0:
+            return []
         query_terms = set(tokenize(query))
-        if not query_terms:
+        if not query_terms or not self.documents:
             return []
 
+        # IDF reduces the influence of generic terms shared by many documents.
+        total_docs = len(self.documents)
+        idf = {
+            term: math.log(1 + (total_docs - self._document_frequency[term] + 0.5)
+                           / (self._document_frequency[term] + 0.5))
+            for term in query_terms
+        }
+        denominator = sum(idf.values()) or 1.0
+        normalized_query = " ".join(tokenize(query))
         results = []
-        for doc in self.documents:
-            terms = tokenize(doc.title + " " + doc.text)
-            counts = Counter(terms)
-            overlap = sum(1 for term in query_terms if counts[term])
-            if not overlap:
-                continue
-            coverage = overlap / len(query_terms)
-            density = overlap / max(len(set(terms)), 1)
-            score = coverage * 0.85 + density * 0.15
-            results.append(RetrievedChunk(doc, score))
 
-        return sorted(results, key=lambda item: item.score, reverse=True)[:limit]
+        for doc, title_terms, body_terms in self._indexed:
+            weighted_match = 0.0
+            matched = 0
+            for term in query_terms:
+                title_frequency = title_terms[term]
+                body_frequency = body_terms[term]
+                if title_frequency or body_frequency:
+                    matched += 1
+                    # Title hits count more than body hits; repeated terms have diminishing value.
+                    weighted_match += idf[term] * (
+                        2.0 * min(title_frequency, 2) + min(body_frequency, 3)
+                    )
+            if not matched:
+                continue
+
+            coverage = sum(idf[t] for t in query_terms
+                           if title_terms[t] or body_terms[t]) / denominator
+            length_norm = math.sqrt(max(sum(body_terms.values()), 1))
+            score = 0.65 * coverage + 0.35 * (weighted_match / (denominator * length_norm))
+            searchable_text = " ".join(tokenize(doc.title + " " + doc.text))
+            if len(normalized_query) >= 8 and normalized_query in searchable_text:
+                score += 0.05
+            results.append(RetrievedChunk(doc, round(score, 6)))
+
+        return sorted(results, key=lambda item: (-item.score, item.document.id))[:limit]
 
 
 class BitcoinAnswerEngine:
@@ -87,7 +136,7 @@ class BitcoinAnswerEngine:
                 "id": doc.id,
                 "title": doc.title,
                 "url": doc.source_url,
-                "score": round(match.score, 3),
+                "score": match.score,
                 "license": doc.license,
             })
 
