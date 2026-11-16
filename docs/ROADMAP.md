@@ -3,15 +3,17 @@
 ## Phase 1 — Foundation
 - [x] Python package and CLI
 - [x] Curated starter corpus with source metadata
+- [x] Deterministic IDF-weighted retrieval with title weighting
 - [x] Retrieval with citations
 - [x] Abstention when evidence is missing
-- [x] Unit tests
+- [x] Unit tests for ranking, determinism, citations, and abstention
 
 ## Phase 1B — Data quality
 - [ ] Verify redistribution rights and record per-document license
 - [ ] Add canonical source snapshots and retrieval dates
-- [x] Add an initial seven-question retrieval/abstention benchmark (human review still needed)
-- [ ] Add document deduplication and provenance checks
+- [x] Add an initial seven-question retrieval benchmark with top-ranked evidence assertions (human review and expansion still needed)
+- [x] Reject duplicate document IDs, empty required fields, and invalid source URL schemes
+- [ ] Add content-level deduplication and complete provenance checks
 
 ## Phase 2 — Live Bitcoin data
 - [ ] Price adapter (timestamp, currency, provider, cache)
