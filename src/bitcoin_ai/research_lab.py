@@ -34,6 +34,10 @@ DEFAULT_CANDIDATES = [
 def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
     if not isinstance(bars, list) or len(bars) < 3 or any(not isinstance(b, Bar) for b in bars):
         raise BacktestError("bars must be a list of at least 3 Bar observations")
+    for index, bar in enumerate(bars):
+        if (not hasattr(bar.timestamp, "tzinfo") or bar.timestamp.tzinfo is None
+                or bar.timestamp.utcoffset() is None):
+            raise BacktestError(f"Bar {index} timestamp must be timezone-aware")
     if any(bars[i].timestamp <= bars[i - 1].timestamp for i in range(1, len(bars))):
         raise BacktestError("Bars must have strictly increasing timestamps")
     if any(not isinstance(b.close, (int, float)) or isinstance(b.close, bool)
@@ -67,7 +71,8 @@ def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
 
 def _signal(closes, i, family, lookback):
     if family == "sma":
-        fast = sum(closes[i - max(2, lookback // 3) + 1:i + 1]) / max(2, lookback // 3)
+        fast_window = max(1, lookback // 3)
+        fast = sum(closes[i - fast_window + 1:i + 1]) / fast_window
         slow = sum(closes[i - lookback + 1:i + 1]) / lookback
         return 1.0 if fast > slow and closes[i] > slow else 0.0
     if family == "momentum":
@@ -145,8 +150,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         raise BacktestError("periods_per_year must be finite and positive")
     closes = [float(b.close) for b in bars]
     cost = (fee_bps + slippage_bps) / 10000
-    cursor, folds, oos, benchmark = train_bars, [], [], []
+    cursor, folds, oos, benchmark, stress_oos = train_bars, [], [], [], []
+    oos_regimes = []
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
+    selection_counts = {family: 0 for family, _ in normalized}
     regime_lookback = min(20, max(3, train_bars - 1))
     while cursor + test_bars < len(bars):
         scored = []
@@ -169,12 +176,19 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         test_end = cursor + test_bars
         # Include training history so the first test signal has sufficient lookback.
         fold_returns = _simulate(closes, test_start, test_end, family, lookback, cost)
+        # Keep the training-selected candidate fixed while doubling estimated costs.
+        stress_returns = _simulate(closes, test_start, test_end, family, lookback, cost * 2)
         market_returns = [closes[i + 1] / closes[i] - 1 for i in range(test_start, test_end)]
+        fold_regimes = []
         for i in range(test_start, test_end):
             label = classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
             regime_counts[label] += 1
+            fold_regimes.append(label)
         oos.extend(fold_returns)
+        stress_oos.extend(stress_returns)
         benchmark.extend(market_returns)
+        oos_regimes.extend(fold_regimes)
+        selection_counts[family] += 1
         folds.append({
             "train_start": bars[cursor - train_bars].timestamp.isoformat(),
             "train_end": bars[cursor - 1].timestamp.isoformat(),
@@ -184,12 +198,24 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "training_selection_score": round(chosen[0], 4),
             "training_sortino": chosen[3]["sortino_ratio"],
             "oos_metrics": _metrics(fold_returns, _equity_curve(fold_returns), periods_per_year),
+            "oos_metrics_at_2x_cost": _metrics(stress_returns, _equity_curve(stress_returns), periods_per_year),
         })
         cursor += step
     if not folds:
         raise BacktestError("Not enough bars for one complete train/test fold")
+    # Regime buckets are descriptive slices of held-out returns, never tuning inputs.
+    regime_metrics = {}
+    for label in regime_counts:
+        strategy_slice = [value for value, regime in zip(oos, oos_regimes) if regime == label]
+        benchmark_slice = [value for value, regime in zip(benchmark, oos_regimes) if regime == label]
+        regime_metrics[label] = {
+            "observations": len(strategy_slice),
+            "strategy": _metrics(strategy_slice, _equity_curve(strategy_slice), periods_per_year),
+            "buy_and_hold": _metrics(benchmark_slice, _equity_curve(benchmark_slice), periods_per_year),
+            "interpretation": "Descriptive out-of-sample subset; small samples are not reliable evidence.",
+        }
     report = {
-        "method": "multi-family rolling walk-forward with block bootstrap",
+        "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis and cost stress",
         "families": sorted({family for family, _ in normalized}),
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
@@ -197,13 +223,23 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "buy_and_hold_metrics": _metrics(benchmark, _equity_curve(benchmark), periods_per_year),
         "cash_metrics": _metrics([0.0] * len(oos), _equity_curve([0.0] * len(oos)), periods_per_year),
         "bootstrap": _bootstrap(oos, bootstrap_trials, seed),
+        "out_of_sample_metrics_at_2x_cost": _metrics(stress_oos, _equity_curve(stress_oos), periods_per_year),
         "out_of_sample_regime_counts": regime_counts,
+        "out_of_sample_regime_metrics": regime_metrics,
+        "training_selection_counts": selection_counts,
+        "training_selection_stability": {
+            "most_selected_family": max(selection_counts, key=selection_counts.get),
+            "selection_share_pct": round(max(selection_counts.values()) / len(folds) * 100, 2),
+            "warning": "Selection frequency is descriptive and does not establish superiority.",
+        },
         "folds": folds,
         "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage; deterministic tie-break. Test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
-            "Block bootstrap assumes historical return blocks are informative and cannot capture unprecedented regimes.",
+            "Block bootstrap resamples concatenated fold returns; fold boundaries and changing market structure limit interpretation.",
+            "Regime-conditioned metrics are descriptive, can have small samples, and are not used to select strategies.",
+            "The 2x-cost scenario is a sensitivity check, not a calibrated execution-cost forecast.",
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
         ],
     }
