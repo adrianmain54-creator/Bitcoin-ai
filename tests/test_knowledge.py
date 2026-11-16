@@ -73,3 +73,10 @@ def test_engine_abstains_on_overly_broad_or_weakly_supported_queries():
     engine = BitcoinAnswerEngine(KnowledgeBase.from_jsonl(DATA))
     assert engine.answer("Bitcoin")["abstained"] is True
     assert engine.answer("Bitcoin price prediction")["abstained"] is True
+
+
+def test_topic_metadata_disambiguates_specific_bitcoin_concepts():
+    kb = KnowledgeBase.from_jsonl(DATA)
+    result = kb.search("How does a mnemonic phrase generate a wallet seed?")
+    assert result
+    assert result[0].document.id == "btc-bip39-mnemonics"
