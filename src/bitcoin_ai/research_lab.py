@@ -136,7 +136,7 @@ def _bootstrap(returns, trials, seed, block_size=5):
     }
 
 
-def _selection_score(returns, metrics):
+def _selection_score(returns, metrics, regime_labels=None):
     """Score training candidates for risk-adjusted return and segment consistency."""
     segment_count = min(4, len(returns))
     segment_returns = []
@@ -148,8 +148,16 @@ def _selection_score(returns, metrics):
     worst_segment_pct = min(segment_returns) * 100.0
     drawdown_penalty = abs(metrics["max_drawdown_pct"]) / 10.0
     worst_segment_penalty = abs(min(0.0, worst_segment_pct)) / 10.0
-    score = metrics["sortino_ratio"] - drawdown_penalty + positive_share - worst_segment_penalty
-    return score, positive_share, worst_segment_pct
+    regime_means = []
+    if regime_labels is not None and len(regime_labels) == len(returns):
+        for label in ("uptrend", "downtrend", "range", "high_volatility"):
+            bucket = [value for value, regime in zip(returns, regime_labels) if regime == label]
+            if len(bucket) >= 3:
+                regime_means.append((label, math.prod(1.0 + value for value in bucket) - 1.0))
+    worst_regime_pct = min((value * 100.0 for _, value in regime_means), default=0.0)
+    regime_penalty = abs(min(0.0, worst_regime_pct)) / 20.0
+    score = metrics["sortino_ratio"] - drawdown_penalty + positive_share - worst_segment_penalty - regime_penalty
+    return score, positive_share, worst_segment_pct, worst_regime_pct, len(regime_means)
 
 
 def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
@@ -178,16 +186,22 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     while cursor + test_bars < len(bars):
         scored = []
         for family, lookback in normalized:
-            train_returns = _simulate(closes, cursor - train_bars + lookback,
-                                      cursor - 1, family, lookback, cost)
+            train_start = cursor - train_bars + max(lookback, regime_lookback)
+            train_returns = _simulate(closes, train_start, cursor - 1, family, lookback, cost)
             if not train_returns:
                 continue
             equity = _equity_curve(train_returns)
             metrics = _metrics(train_returns, equity, periods_per_year)
-            # Selection sees training data only. Segment consistency rewards
-            # repeatability and penalizes a single disastrous training segment.
-            score, positive_share, worst_segment_pct = _selection_score(train_returns, metrics)
-            scored.append((score, family, lookback, metrics, positive_share, worst_segment_pct))
+            # Regimes use only trailing observations available at each training close.
+            train_regimes = [
+                classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
+                for i in range(train_start, cursor - 1)
+            ]
+            score, positive_share, worst_segment_pct, worst_regime_pct, regime_coverage = (
+                _selection_score(train_returns, metrics, train_regimes)
+            )
+            scored.append((score, family, lookback, metrics, positive_share,
+                           worst_segment_pct, worst_regime_pct, regime_coverage))
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
@@ -219,6 +233,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "training_sortino": chosen[3]["sortino_ratio"],
             "training_positive_segment_share": round(chosen[4], 4),
             "training_worst_segment_return_pct": round(chosen[5], 4),
+            "training_worst_regime_return_pct": round(chosen[6], 4),
+            "training_regimes_scored": chosen[7],
             "oos_metrics": _metrics(fold_returns, _equity_curve(fold_returns), periods_per_year),
             "oos_metrics_at_2x_cost": _metrics(stress_returns, _equity_curve(stress_returns), periods_per_year),
         })
@@ -255,7 +271,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "warning": "Selection frequency is descriptive and does not establish superiority.",
         },
         "folds": folds,
-        "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage; deterministic tie-break. Training is split into up to four chronological segments. Test data never selects parameters.",
+        "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, and minus 0.05 times the absolute worst negative training-regime return percentage. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
