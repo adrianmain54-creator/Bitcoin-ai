@@ -29,6 +29,7 @@ def generate_signal(
     fast_window: int = 12,
     slow_window: int = 48,
     max_allocation: float = 0.20,
+    current_allocation: float = 0.0,
 ) -> TradingSignal:
     """Return a long/cash trend signal using only the supplied completed closes.
 
@@ -46,6 +47,9 @@ def generate_signal(
         raise StrategyError("max_allocation must be a finite number")
     if not math.isfinite(max_allocation) or not 0 <= max_allocation <= 1:
         raise StrategyError("max_allocation must be between 0 and 1")
+    if (isinstance(current_allocation, bool) or not isinstance(current_allocation, (int, float))
+            or not math.isfinite(current_allocation) or not 0 <= current_allocation <= 1):
+        raise StrategyError("current_allocation must be between 0 and 1")
     if len(closes) < slow_window:
         raise StrategyError(f"At least {slow_window} closes are required")
 
@@ -58,14 +62,16 @@ def generate_signal(
     slow = fmean(values[-slow_window:])
     latest = values[-1]
     if fast > slow and latest > slow:
+        target = float(max_allocation)
+        action = "buy" if current_allocation < target - 1e-9 else "hold"
         return TradingSignal(
-            action="buy", target_allocation=float(max_allocation),
-            reason="Fast SMA is above slow SMA and price is above the slow SMA.",
+            action=action, target_allocation=target,
+            reason="Bullish trend confirmed; increase exposure to the configured cap." if action == "buy" else "Bullish trend remains valid; target exposure is already reached.",
             fast_sma=fast, slow_sma=slow, close=latest,
         )
     return TradingSignal(
-        action="sell" if fast <= slow or latest <= slow else "hold",
+        action="sell" if current_allocation > 1e-9 else "hold",
         target_allocation=0.0,
-        reason="Trend confirmation is absent; strategy target is cash.",
+        reason="Trend confirmation is absent; reduce existing exposure to cash." if current_allocation > 1e-9 else "Trend confirmation is absent; remain in cash.",
         fast_sma=fast, slow_sma=slow, close=latest,
     )
