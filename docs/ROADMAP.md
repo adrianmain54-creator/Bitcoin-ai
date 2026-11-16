@@ -26,7 +26,7 @@
 - [x] Read-only BTC price, block-height, mempool, and recommended-fee adapter
 - [x] Include provider, source URL, observation time, units, age, and cache status
 - [x] Bounded timeouts, short in-memory caching, and response validation
-- [ ] Add historical market data and robust time-series storage
+- [x] Add CSV historical close-price ingestion with validation\n- [x] Add leakage-aware SMA backtest with fees, slippage, buy-and-hold comparison, and drawdown metrics\n- [ ] Add reproducible time-series storage and provider-specific historical data ingestion
 - [ ] Add difficulty, hashrate, and Lightning network adapters
 - [ ] Optional Bitcoin Core RPC integration
 - [ ] Never label stale or unavailable data as live
