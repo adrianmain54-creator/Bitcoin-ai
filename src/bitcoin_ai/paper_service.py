@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
 import time
 from typing import Callable
 
@@ -19,8 +20,10 @@ class PaperService:
                  client: BinanceCandleClient | None = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  limits: RiskLimits = RiskLimits()):
-        if poll_seconds < 10:
-            raise ValueError("poll_seconds must be at least 10 seconds")
+        if isinstance(poll_seconds, bool) or not isinstance(poll_seconds, (int, float)) or not math.isfinite(poll_seconds) or poll_seconds < 10:
+            raise ValueError("poll_seconds must be a finite number of at least 10 seconds")
+        if isinstance(initial_cash, bool) or not isinstance(initial_cash, (int, float)) or not math.isfinite(initial_cash) or initial_cash <= 0:
+            raise ValueError("initial_cash must be a finite positive number")
         self.store = PaperStateStore(state_path)
         self.interval = interval
         self.poll_seconds = poll_seconds
