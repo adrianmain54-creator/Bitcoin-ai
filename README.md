@@ -12,6 +12,7 @@ A Bitcoin-native intelligence and automated-trading research project built from 
 - Corpus integrity checks and an audit command.
 - A read-only public data adapter for BTC spot price, block height, mempool statistics, and recommended transaction fees, with provenance and bounded caching.
 - A CSV-based SMA research backtester with configurable fee/slippage assumptions and buy-and-hold comparison.
+- A rolling walk-forward research engine that selects parameters only on prior training windows and reports non-overlapping, out-of-sample results against buy-and-hold.
 - A **paper-only portfolio execution simulator** that caps BTC allocation, models fees and adverse slippage, and records simulated fills.
 - An explainable SMA trend-signal baseline and independent fail-closed risk gates (20% default exposure cap, 2% daily-loss halt, 10% drawdown halt, stale-data rejection, cooldown, and kill switch).
 - A one-cycle autonomous paper-trading orchestrator that connects signals, risk decisions, and simulated execution; risk halts de-risk to cash while stale data blocks trading.
@@ -33,6 +34,7 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 bitcoin-ai ask "How does a Bitcoin transaction use UTXOs?"
 bitcoin-ai network --currency USD
+bitcoin-ai walk-forward --csv ./btc-daily.csv --train-bars 365 --test-bars 90 --periods-per-year 365
 bitcoin-ai paper-run --state ./paper-state.json --interval 1m --poll-seconds 60
 bitcoin-ai paper-report --state ./paper-state.json --initial-cash 10000
 pytest
