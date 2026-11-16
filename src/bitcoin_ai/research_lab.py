@@ -147,7 +147,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     while cursor + test_bars < len(bars):
         scored = []
         for family, lookback in normalized:
-            train_returns = _simulate(closes, cursor - train_bars + lookback - 1,
+            train_returns = _simulate(closes, cursor - train_bars + lookback,
                                       cursor - 1, family, lookback, cost)
             if not train_returns:
                 continue
