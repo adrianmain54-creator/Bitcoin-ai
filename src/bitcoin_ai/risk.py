@@ -83,7 +83,7 @@ def evaluate_risk(
     current_time = _utc(now)
     observation_time = _utc(observed_at)
     if observation_time > current_time:
-        return RiskDecision(False, current_allocation, "Market data timestamp is in the future.", state.halted)
+        return RiskDecision(False, current_allocation, "Market data timestamp is in the future.", False)
 
     age = (current_time - observation_time).total_seconds()
     if age > limits.max_data_age_seconds:
