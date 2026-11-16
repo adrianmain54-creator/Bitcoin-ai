@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from bitcoin_ai.backtesting import BacktestError, Bar
-from bitcoin_ai.research_lab import run_strategy_lab
+from bitcoin_ai.research_lab import run_strategy_lab, _selection_score
 
 
 def bars(count=260):
@@ -88,3 +88,29 @@ def test_cash_is_a_valid_abstention_candidate():
     assert result["out_of_sample_metrics"]["total_return_pct"] == 0.0
     assert result["out_of_sample_metrics"]["max_drawdown_pct"] == 0.0
     assert all(fold["selected_family"] == "cash" for fold in result["folds"])
+
+
+
+def test_selection_score_rewards_consistency_and_penalizes_bad_segments():
+    metrics = {"sortino_ratio": 1.0, "max_drawdown_pct": -5.0}
+    steady = [0.01] * 40
+    volatile = [0.05] * 10 + [0.01] * 10 + [-0.08] * 10 + [0.01] * 10
+    steady_score, steady_share, steady_worst = _selection_score(steady, metrics)
+    volatile_score, volatile_share, volatile_worst = _selection_score(volatile, metrics)
+    assert steady_share == 1.0
+    assert steady_worst > 0
+    assert volatile_share < steady_share
+    assert volatile_worst < steady_worst
+    assert steady_score > volatile_score
+
+
+def test_strategy_lab_reports_training_consistency_diagnostics():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 12}, {"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    for fold in result["folds"]:
+        assert 0.0 <= fold["training_positive_segment_share"] <= 1.0
+        assert isinstance(fold["training_worst_segment_return_pct"], float)
+    assert "positive-segment share" in result["selection_policy"]
