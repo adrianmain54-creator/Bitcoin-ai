@@ -49,3 +49,16 @@ def test_walk_forward_requires_enough_data_for_one_fold():
             make_bars(50), candidates=[(3, 8)],
             train_bars=30, test_bars=20,
         )
+
+
+def test_walk_forward_costs_reduce_results_including_fold_liquidation():
+    bars = make_bars()
+    free = walk_forward_sma_backtest(
+        bars, candidates=[(3, 8)], train_bars=60, test_bars=20,
+        fee_bps=0, slippage_bps=0,
+    )
+    costly = walk_forward_sma_backtest(
+        bars, candidates=[(3, 8)], train_bars=60, test_bars=20,
+        fee_bps=20, slippage_bps=10,
+    )
+    assert costly["out_of_sample_metrics"]["total_return_pct"] < free["out_of_sample_metrics"]["total_return_pct"]
