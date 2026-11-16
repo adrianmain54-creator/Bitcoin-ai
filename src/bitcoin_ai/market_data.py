@@ -18,8 +18,12 @@ class BinanceCandleClient:
     BASE_URL = "https://api.binance.com/api/v3/klines"
     KRAKEN_URL = "https://api.kraken.com/0/public/OHLC"
     INTERVAL_MINUTES = {
-        "1m": 1, "3m": 5, "5m": 5, "15m": 15,
+        "1m": 1, "3m": 3, "5m": 5, "15m": 15,
         "30m": 30, "1h": 60, "4h": 240, "1d": 1440,
+    }
+    KRAKEN_INTERVAL_MINUTES = {
+        "1m": 1, "5m": 5, "15m": 15, "30m": 30,
+        "1h": 60, "4h": 240, "1d": 1440,
     }
 
     def __init__(self, *, timeout_seconds: float = 8.0, opener=urlopen):
@@ -61,7 +65,9 @@ class BinanceCandleClient:
                 datetime.fromtimestamp(completed[-1][1] / 1000, timezone.utc))
 
     def _kraken(self, interval: str, limit: int, current: datetime):
-        minutes = self.INTERVAL_MINUTES[interval]
+        if interval not in self.KRAKEN_INTERVAL_MINUTES:
+            raise MarketDataError(f"Kraken does not support {interval}; refusing to substitute a different candle interval")
+        minutes = self.KRAKEN_INTERVAL_MINUTES[interval]
         url = f"{self.KRAKEN_URL}?pair=XBTUSDT&interval={minutes}"
         payload = self._get_json(url)
         if not isinstance(payload, dict) or payload.get("error"):
