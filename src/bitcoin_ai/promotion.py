@@ -24,12 +24,14 @@ def evaluate_paper_trial_eligibility(report, *, min_folds=6, min_oos_returns=180
     strategy = report.get("out_of_sample_metrics")
     benchmark = report.get("buy_and_hold_metrics")
     bootstrap = report.get("bootstrap")
+    stressed = report.get("out_of_sample_metrics_at_2x_cost")
     if isinstance(folds, bool) or not isinstance(folds, int) or folds < min_folds:
         reasons.append(f"requires at least {min_folds} completed out-of-sample folds")
     if isinstance(n, bool) or not isinstance(n, int) or n < min_oos_returns:
         reasons.append(f"requires at least {min_oos_returns} out-of-sample returns")
-    if not isinstance(strategy, dict) or not isinstance(benchmark, dict) or not isinstance(bootstrap, dict):
-        reasons.append("missing strategy, benchmark, or bootstrap evidence")
+    if (not isinstance(strategy, dict) or not isinstance(benchmark, dict)
+            or not isinstance(bootstrap, dict) or not isinstance(stressed, dict)):
+        reasons.append("missing strategy, benchmark, bootstrap, or 2x-cost stress evidence")
     else:
         def finite_metric(obj, key):
             value = obj.get(key)
@@ -39,8 +41,9 @@ def evaluate_paper_trial_eligibility(report, *, min_folds=6, min_oos_returns=180
         drawdown = finite_metric(strategy, "max_drawdown_pct")
         sortino = finite_metric(strategy, "sortino_ratio")
         p05 = finite_metric(bootstrap, "final_equity_p05")
-        if None in (strat_return, bench_return, drawdown, sortino, p05):
-            reasons.append("required performance or bootstrap metrics are missing or invalid")
+        stressed_return = finite_metric(stressed, "total_return_pct")
+        if None in (strat_return, bench_return, drawdown, sortino, p05, stressed_return):
+            reasons.append("required performance, stress, or bootstrap metrics are missing or invalid")
         else:
             if strat_return <= bench_return:
                 reasons.append("out-of-sample return did not beat buy-and-hold")
@@ -50,6 +53,8 @@ def evaluate_paper_trial_eligibility(report, *, min_folds=6, min_oos_returns=180
                 reasons.append("out-of-sample Sortino ratio is not positive")
             if p05 <= 1.0:
                 reasons.append("bootstrap fifth-percentile ending equity is not above starting equity")
+            if stressed_return <= 0.0:
+                reasons.append("out-of-sample return is not positive at 2x estimated execution costs")
     return {
         "eligible": not reasons,
         "reasons": reasons,
