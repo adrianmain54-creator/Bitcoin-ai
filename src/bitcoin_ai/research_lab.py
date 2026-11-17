@@ -377,6 +377,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     if step == test_bars and oos_position:
         oos[-1] -= oos_position * cost
         stress_oos[-1] -= stress_position * cost * 2
+        # Include the final liquidation in portfolio-level turnover and exits.
+        oos_turnovers[-1] += oos_position
+        if oos_position:
+            oos_exits.append(len(oos) - 1)
     # Regime buckets are descriptive slices of held-out returns, never tuning inputs.
     regime_metrics = {}
     for label in regime_counts:
