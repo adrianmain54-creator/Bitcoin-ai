@@ -22,6 +22,8 @@ def test_cycle_runs_strategy_through_risk_and_paper_execution():
         observed_at=NOW, now=NOW,
     )
     assert result.signal.action == "buy"
+    assert result.agents.decision == "long"
+    assert result.agents.votes["trend"] == "bullish"
     assert result.risk.allowed
     assert result.execution["side"] == "buy"
     assert account.btc > 0
