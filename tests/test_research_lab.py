@@ -295,6 +295,19 @@ def test_selection_score_penalizes_severe_left_tail_returns():
 
 
 
+
+
+def test_research_report_includes_held_out_agent_council_diagnostics():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "agent_council", "lookback": 48}, {"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    diagnostics = result["agent_council_oos_diagnostics"]
+    assert diagnostics["observations"] == result["out_of_sample_returns"]
+    assert "agent_vote_counts" in diagnostics
+    assert "skeptic_intervention_count" in diagnostics
+
 def test_agent_council_is_a_walk_forward_candidate():
     result = run_strategy_lab(
         bars(), train_bars=100, test_bars=30,
