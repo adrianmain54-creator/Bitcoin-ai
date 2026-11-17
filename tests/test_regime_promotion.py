@@ -42,6 +42,7 @@ def test_promotion_gate_requires_all_conservative_conditions():
         "out_of_sample_metrics": {"total_return_pct": 12.0, "max_drawdown_pct": -8.0, "sortino_ratio": 1.2},
         "buy_and_hold_metrics": {"total_return_pct": 7.0},
         "bootstrap": {"final_equity_p05": 1.03},
+        "out_of_sample_metrics_at_2x_cost": {"total_return_pct": 2.0},
     }
     assert evaluate_paper_trial_eligibility(report)["eligible"] is True
     report["out_of_sample_metrics"]["max_drawdown_pct"] = -25.0
@@ -55,3 +56,29 @@ def test_promotion_gate_fails_closed_on_missing_evidence():
     assert result["eligible"] is False
     assert result["reasons"]
     assert "never authorizes live trading" in result["scope"]
+
+
+
+def test_promotion_gate_rejects_strategy_that_fails_under_double_costs():
+    report = {
+        "fold_count": 8, "out_of_sample_returns": 240,
+        "out_of_sample_metrics": {"total_return_pct": 12.0, "max_drawdown_pct": -8.0, "sortino_ratio": 1.2},
+        "buy_and_hold_metrics": {"total_return_pct": 7.0},
+        "bootstrap": {"final_equity_p05": 1.03},
+        "out_of_sample_metrics_at_2x_cost": {"total_return_pct": -1.5},
+    }
+    result = evaluate_paper_trial_eligibility(report)
+    assert result["eligible"] is False
+    assert any("2x estimated execution costs" in reason for reason in result["reasons"])
+
+
+def test_promotion_gate_fails_closed_without_double_cost_evidence():
+    report = {
+        "fold_count": 8, "out_of_sample_returns": 240,
+        "out_of_sample_metrics": {"total_return_pct": 12.0, "max_drawdown_pct": -8.0, "sortino_ratio": 1.2},
+        "buy_and_hold_metrics": {"total_return_pct": 7.0},
+        "bootstrap": {"final_equity_p05": 1.03},
+    }
+    result = evaluate_paper_trial_eligibility(report)
+    assert result["eligible"] is False
+    assert any("2x-cost stress evidence" in reason for reason in result["reasons"])
