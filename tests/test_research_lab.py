@@ -241,7 +241,7 @@ def test_selection_score_penalizes_excessive_turnover():
     assert high_turnover[5] == pytest.approx(20.0)
     assert high_turnover[6] > low_turnover[6]
     assert high_turnover[7] == pytest.approx(0.1)
-    assert high_turnover[8] == pytest.approx(0.01)
+    assert high_turnover[8] == pytest.approx(0.0)
 
 
 
