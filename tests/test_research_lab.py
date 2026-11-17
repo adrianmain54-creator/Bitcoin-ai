@@ -292,3 +292,23 @@ def test_selection_score_penalizes_severe_left_tail_returns():
     assert calm_result[7] > tail_result[7]
     assert tail_result[8] > calm_result[8]
     assert calm_result[0] > tail_result[0]
+
+
+
+def test_agent_council_is_a_walk_forward_candidate():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "agent_council", "lookback": 48}, {"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    assert "agent_council" in result["families"]
+    assert sum(result["training_selection_counts"].values()) == result["fold_count"]
+
+
+def test_agent_council_candidate_rejects_insufficient_warmup():
+    with pytest.raises(BacktestError, match="lookback must be >= 48"):
+        run_strategy_lab(
+            bars(), train_bars=100, test_bars=30,
+            candidates=[{"family": "agent_council", "lookback": 20}],
+            bootstrap_trials=100,
+        )
