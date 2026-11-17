@@ -137,3 +137,39 @@ def test_strategy_lab_reports_causal_training_regime_diagnostics():
         assert isinstance(fold["training_worst_regime_return_pct"], float)
         assert 0 <= fold["training_regimes_scored"] <= 4
     assert "trailing observations" in result["selection_policy"]
+
+
+
+def test_candidates_share_identical_effective_training_window():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "sma", "lookback": 5},
+            {"family": "breakout", "lookback": 24},
+            {"family": "cash", "lookback": 2},
+        ],
+        bootstrap_trials=100,
+    )
+    first = result["folds"][0]
+    assert first["training_scoring_start"] == bars()[24].timestamp.isoformat()
+    assert first["training_scoring_observations"] == 75
+
+
+def test_regime_classification_uses_only_bounded_trailing_slice(monkeypatch):
+    import bitcoin_ai.research_lab as research_lab
+
+    original = research_lab.classify_regime
+    observed_lengths = []
+
+    def recording_classifier(closes, *, lookback=20):
+        observed_lengths.append(len(closes))
+        return original(closes, lookback=lookback)
+
+    monkeypatch.setattr(research_lab, "classify_regime", recording_classifier)
+    run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 12}],
+        bootstrap_trials=100,
+    )
+    assert observed_lengths
+    assert max(observed_lengths) <= 21
