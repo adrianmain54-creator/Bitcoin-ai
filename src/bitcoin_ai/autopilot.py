@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import math
 
+from .agents import AgentCouncilReport, run_agent_council
 from .paper_trading import PaperAccount
 from .risk import RiskDecision, RiskLimits, RiskState, evaluate_risk
 from .strategy import TradingSignal, generate_signal
@@ -20,6 +21,7 @@ class PaperCycleResult:
     risk: RiskDecision
     execution: dict | None
     equity: float
+    agents: AgentCouncilReport
 
 
 def run_paper_cycle(
@@ -51,13 +53,14 @@ def run_paper_cycle(
     if equity <= 0:
         raise ValueError("paper account equity must be positive")
     current_allocation = (account.btc * price) / equity
-    signal = generate_signal(
+    agents = run_agent_council(
         closes,
         fast_window=fast_window,
         slow_window=slow_window,
         max_allocation=limits.max_allocation,
         current_allocation=current_allocation,
     )
+    signal = agents.signal
 
     decision = evaluate_risk(
         requested_allocation=signal.target_allocation,
@@ -85,4 +88,5 @@ def run_paper_cycle(
         risk=decision,
         execution=execution,
         equity=account.equity(price),
+        agents=agents,
     )
