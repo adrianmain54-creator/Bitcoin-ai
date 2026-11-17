@@ -305,6 +305,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
     selection_counts = {family: 0 for family, _ in normalized}
     regime_lookback = min(20, max(3, train_bars - 1))
+    oos_start_index = None
+    oos_end_index = None
     while cursor + test_bars < len(bars):
         scored = []
         # Every candidate must be scored on the same effective training dates.
