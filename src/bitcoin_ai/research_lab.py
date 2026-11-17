@@ -102,6 +102,48 @@ def _simulate(closes, start, end, family, lookback, cost, *,
     return returns
 
 
+
+def _position_diagnostics(closes, start, end, family, lookback, initial_position=0.0):
+    """Return held exposure and turnover for each OOS return interval."""
+    positions, turnovers, entries, exits = [], [], [], []
+    previous = initial_position
+    for i in range(start, end):
+        target = _signal(closes, i, family, lookback)
+        positions.append(target)
+        turnovers.append(abs(target - previous))
+        if target > previous:
+            entries.append(i)
+        elif target < previous:
+            exits.append(i)
+        previous = target
+    return {
+        "positions": positions,
+        "turnovers": turnovers,
+        "entries": entries,
+        "exits": exits,
+    }
+
+
+def _attribution(returns, market_returns, positions, turnovers, entries, exits, cost):
+    """Summarize exposure, trade activity, gross contribution and estimated costs."""
+    count = len(returns)
+    gross = sum(position * market for position, market in zip(positions, market_returns))
+    cost_drag = sum(turnovers) * cost
+    return {
+        "observations": count,
+        "in_market_bars": sum(position > 0 for position in positions),
+        "exposure_pct": round(100 * sum(position > 0 for position in positions) / count, 4) if count else 0.0,
+        "average_exposure_pct": round(100 * sum(positions) / count, 4) if count else 0.0,
+        "entries": len(entries),
+        "exits": len(exits),
+        "turnover_events": sum(turnover > 0 for turnover in turnovers),
+        "total_turnover_units": round(sum(turnovers), 6),
+        "gross_market_return_contribution_pct": round(gross * 100, 4),
+        "estimated_cost_drag_pct": round(cost_drag * 100, 4),
+        "net_return_pct": round((math.prod(1 + value for value in returns) - 1) * 100, 4),
+    }
+
+
 def _bootstrap(returns, trials, seed, block_size=5):
     if not returns:
         return {"trials": 0, "final_equity_p05": None, "final_equity_median": None,
@@ -182,6 +224,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     cost = (fee_bps + slippage_bps) / 10000
     cursor, folds, oos, benchmark, stress_oos = train_bars, [], [], [], []
     oos_regimes = []
+    oos_positions, oos_turnovers, oos_market_returns = [], [], []
+    oos_entries, oos_exits = [], []
+    family_attribution = {}
     oos_position = 0.0
     stress_position = 0.0
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
@@ -222,6 +267,11 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             initial_position=oos_position if contiguous_folds and folds else 0.0,
             liquidate=not contiguous_folds,
         )
+        # Track the same position path used by the simulator for attribution.
+        fold_initial_position = oos_position if contiguous_folds and folds else 0.0
+        diagnostics = _position_diagnostics(
+            closes, test_start, test_end, family, lookback, fold_initial_position
+        )
         # Keep the training-selected candidate fixed while doubling estimated costs.
         stress_returns = _simulate(
             closes, test_start, test_end, family, lookback, cost * 2,
@@ -241,6 +291,21 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         stress_oos.extend(stress_returns)
         benchmark.extend(market_returns)
         oos_regimes.extend(fold_regimes)
+        oos_positions.extend(diagnostics["positions"])
+        oos_turnovers.extend(diagnostics["turnovers"])
+        oos_market_returns.extend(market_returns)
+        oos_entries.extend(diagnostics["entries"])
+        oos_exits.extend(diagnostics["exits"])
+        family_bucket = family_attribution.setdefault(family, {
+            "returns": [], "market_returns": [], "positions": [], "turnovers": [],
+            "entries": [], "exits": [], "cost": cost,
+        })
+        family_bucket["returns"].extend(fold_returns)
+        family_bucket["market_returns"].extend(market_returns)
+        family_bucket["positions"].extend(diagnostics["positions"])
+        family_bucket["turnovers"].extend(diagnostics["turnovers"])
+        family_bucket["entries"].extend(diagnostics["entries"])
+        family_bucket["exits"].extend(diagnostics["exits"])
         selection_counts[family] += 1
         folds.append({
             "train_start": bars[cursor - train_bars].timestamp.isoformat(),
@@ -272,11 +337,34 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     for label in regime_counts:
         strategy_slice = [value for value, regime in zip(oos, oos_regimes) if regime == label]
         benchmark_slice = [value for value, regime in zip(benchmark, oos_regimes) if regime == label]
+        regime_indices = [i for i, regime in enumerate(oos_regimes) if regime == label]
         regime_metrics[label] = {
             "observations": len(strategy_slice),
             "strategy": _metrics(strategy_slice, _equity_curve(strategy_slice), periods_per_year),
             "buy_and_hold": _metrics(benchmark_slice, _equity_curve(benchmark_slice), periods_per_year),
+            "attribution": _attribution(
+                [oos[i] for i in regime_indices],
+                [oos_market_returns[i] for i in regime_indices],
+                [oos_positions[i] for i in regime_indices],
+                [oos_turnovers[i] for i in regime_indices],
+                [], [], cost,
+            ),
             "interpretation": "Descriptive out-of-sample subset; small samples are not reliable evidence.",
+        }
+    overall_attribution = _attribution(
+        oos, oos_market_returns, oos_positions, oos_turnovers,
+        oos_entries, oos_exits, cost,
+    )
+    family_metrics = {}
+    for family, bucket in family_attribution.items():
+        family_metrics[family] = {
+            "folds_selected": selection_counts[family],
+            "strategy": _metrics(bucket["returns"], _equity_curve(bucket["returns"]), periods_per_year),
+            "attribution": _attribution(
+                bucket["returns"], bucket["market_returns"], bucket["positions"],
+                bucket["turnovers"], bucket["entries"], bucket["exits"], cost,
+            ),
+            "interpretation": "Descriptive results only for folds where this family was selected; selection is adaptive.",
         }
     report = {
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis and cost stress",
@@ -284,6 +372,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
         "out_of_sample_metrics": _metrics(oos, _equity_curve(oos), periods_per_year),
+        "out_of_sample_attribution": overall_attribution,
+        "selected_family_attribution": family_metrics,
         "buy_and_hold_metrics": _metrics(benchmark, _equity_curve(benchmark), periods_per_year),
         "cash_metrics": _metrics([0.0] * len(oos), _equity_curve([0.0] * len(oos)), periods_per_year),
         "bootstrap": _bootstrap(oos, bootstrap_trials, seed),
@@ -302,7 +392,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
             "Block bootstrap resamples concatenated fold returns; fold boundaries and changing market structure limit interpretation.",
-            "Regime-conditioned metrics are descriptive, can have small samples, and are not used to select strategies.",
+            "Regime-conditioned and selected-family attribution are descriptive; adaptive fold selection means family subsets are not independent strategy backtests.",
+            "Exposure and trade attribution use the selected position held over each OOS close-to-close interval; entries/exits count position transitions and costs are estimated from turnover.",
+            "Gross contribution and cost drag are additive return contributions, while net return is compounded; they should not be expected to sum exactly to net return.",
             "All candidates in a fold are scored on identical effective training dates after the shared maximum warm-up.",
             "The 2x-cost scenario is a sensitivity check, not a calibrated execution-cost forecast.",
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
