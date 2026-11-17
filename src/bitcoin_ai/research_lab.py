@@ -362,6 +362,27 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
+        # Preserve the training-only ranking so every adaptive choice is auditable.
+        candidate_ranking = sorted(scored, key=lambda item: (item[0], item[1], -item[2]), reverse=True)
+        best_score = candidate_ranking[0][0]
+        candidate_diagnostics = [
+            {
+                "family": item[1],
+                "lookback": item[2],
+                "training_score": round(item[0], 6),
+                "score_gap_from_best": round(best_score - item[0], 6),
+                "training_sortino_at_2x_cost": round(item[3]["sortino_ratio"], 6),
+                "training_max_drawdown_pct_at_2x_cost": round(item[3]["max_drawdown_pct"], 4),
+                "training_positive_segment_share": round(item[4], 4),
+                "training_worst_segment_return_pct": round(item[5], 4),
+                "training_worst_regime_return_pct": round(item[6], 4),
+                "training_turnover_per_100_bars": round(item[11], 4),
+                "training_turnover_penalty": round(item[12], 4),
+                "training_worst_5pct_bar_return_pct": round(item[13], 4),
+                "training_tail_loss_penalty": round(item[14], 4),
+            }
+            for item in candidate_ranking
+        ]
         family, lookback = chosen[1], chosen[2]
         test_start = cursor
         test_end = cursor + test_bars
@@ -443,6 +464,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "test_end": bars[test_end].timestamp.isoformat(),
             "selected_family": family, "selected_lookback": lookback,
             "training_selection_score": round(chosen[0], 4),
+            "training_runner_up_score": round(candidate_ranking[1][0], 4) if len(candidate_ranking) > 1 else None,
+            "training_winner_margin": round(chosen[0] - candidate_ranking[1][0], 4) if len(candidate_ranking) > 1 else None,
+            "training_candidate_ranking": candidate_diagnostics,
             "training_sortino_at_2x_cost": chosen[3]["sortino_ratio"],
             "training_base_cost_sortino": chosen[8]["sortino_ratio"],
             "training_turnover_units": round(chosen[9], 6),
