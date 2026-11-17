@@ -190,3 +190,28 @@ def test_contiguous_simulation_can_carry_position_without_forced_fold_exit():
     assert carried[0] == pytest.approx(103.0 / 102.0 - 1.0)
     assert carried[1] == pytest.approx(104.0 / 103.0 - 1.0)
     assert forcibly_closed[-1] == pytest.approx(carried[-1] - 0.001)
+
+
+
+def test_strategy_lab_reports_exposure_trade_and_regime_attribution():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "sma", "lookback": 12},
+            {"family": "momentum", "lookback": 8},
+            {"family": "cash", "lookback": 2},
+        ],
+        bootstrap_trials=100,
+    )
+    overall = result["out_of_sample_attribution"]
+    assert overall["observations"] == result["out_of_sample_returns"]
+    assert 0 <= overall["exposure_pct"] <= 100
+    assert overall["entries"] >= 0 and overall["exits"] >= 0
+    assert overall["total_turnover_units"] >= 0
+    assert "estimated_cost_drag_pct" in overall
+    assert set(result["selected_family_attribution"]) <= {"sma", "momentum", "cash"}
+    for family in result["selected_family_attribution"].values():
+        assert "exposure_pct" in family["attribution"]
+        assert family["folds_selected"] > 0
+    for regime in result["out_of_sample_regime_metrics"].values():
+        assert regime["attribution"]["observations"] == regime["observations"]
