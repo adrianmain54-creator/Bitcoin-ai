@@ -86,8 +86,10 @@ def _signal(closes, i, family, lookback):
     return 1.0 if closes[i] > prior_high else 0.0
 
 
-def _simulate(closes, start, end, family, lookback, cost):
-    position = 0.0
+def _simulate(closes, start, end, family, lookback, cost, *,
+              initial_position=0.0, liquidate=True):
+    """Simulate a continuous position; fold boundaries need not imply liquidation."""
+    position = initial_position
     returns = []
     for i in range(start, end):
         target = _signal(closes, i, family, lookback)
@@ -95,8 +97,8 @@ def _simulate(closes, start, end, family, lookback, cost):
         market_return = closes[i + 1] / closes[i] - 1.0
         returns.append(target * market_return - turnover * cost)
         position = target
-    if position:
-        returns[-1] -= cost
+    if liquidate and position and returns:
+        returns[-1] -= position * cost
     return returns
 
 
@@ -180,6 +182,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     cost = (fee_bps + slippage_bps) / 10000
     cursor, folds, oos, benchmark, stress_oos = train_bars, [], [], [], []
     oos_regimes = []
+    oos_position = 0.0
+    stress_position = 0.0
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
     selection_counts = {family: 0 for family, _ in normalized}
     regime_lookback = min(20, max(3, train_bars - 1))
@@ -212,9 +216,20 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         test_start = cursor
         test_end = cursor + test_bars
         # Include training history so the first test signal has sufficient lookback.
-        fold_returns = _simulate(closes, test_start, test_end, family, lookback, cost)
+        contiguous_folds = not folds or step == test_bars
+        fold_returns = _simulate(
+            closes, test_start, test_end, family, lookback, cost,
+            initial_position=oos_position if contiguous_folds else 0.0,
+            liquidate=not contiguous_folds,
+        )
         # Keep the training-selected candidate fixed while doubling estimated costs.
-        stress_returns = _simulate(closes, test_start, test_end, family, lookback, cost * 2)
+        stress_returns = _simulate(
+            closes, test_start, test_end, family, lookback, cost * 2,
+            initial_position=stress_position if contiguous_folds else 0.0,
+            liquidate=not contiguous_folds,
+        )
+        oos_position = _signal(closes, test_end - 1, family, lookback)
+        stress_position = oos_position
         market_returns = [closes[i + 1] / closes[i] - 1 for i in range(test_start, test_end)]
         fold_regimes = []
         for i in range(test_start, test_end):
@@ -247,6 +262,11 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         cursor += step
     if not folds:
         raise BacktestError("Not enough bars for one complete train/test fold")
+    # Liquidate once at the end of the complete OOS stream, not at every
+    # contiguous model-reselection boundary.
+    if step == test_bars and oos_position:
+        oos[-1] -= oos_position * cost
+        stress_oos[-1] -= stress_position * cost * 2
     # Regime buckets are descriptive slices of held-out returns, never tuning inputs.
     regime_metrics = {}
     for label in regime_counts:
