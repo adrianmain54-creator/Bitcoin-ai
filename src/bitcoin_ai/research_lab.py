@@ -28,6 +28,7 @@ DEFAULT_CANDIDATES = [
     {"family": "momentum", "lookback": 5},
     {"family": "momentum", "lookback": 10},
     {"family": "breakout", "lookback": 20},
+    {"family": "vol_target_sma", "lookback": 20},
     # Explicit abstention baseline: staying in cash must be a selectable action.
     {"family": "cash", "lookback": 2},
 ]
@@ -55,7 +56,7 @@ def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
         if not isinstance(candidate, dict) or set(candidate) != {"family", "lookback"}:
             raise BacktestError("Candidates require exactly family and lookback")
         family, lookback = candidate["family"], candidate["lookback"]
-        if family not in {"sma", "momentum", "breakout", "cash"}:
+        if family not in {"sma", "momentum", "breakout", "vol_target_sma", "cash"}:
             raise BacktestError("Unknown strategy family")
         if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 2 or lookback >= train_bars:
             raise BacktestError("lookback must be an integer >= 2 and smaller than train_bars")
@@ -81,6 +82,21 @@ def _signal(closes, i, family, lookback):
         return 1.0 if fast > slow and closes[i] > slow else 0.0
     if family == "momentum":
         return 1.0 if closes[i] > closes[i - lookback] else 0.0
+    if family == "vol_target_sma":
+        fast_window = max(1, lookback // 3)
+        fast = sum(closes[i - fast_window + 1:i + 1]) / fast_window
+        slow = sum(closes[i - lookback + 1:i + 1]) / lookback
+        if not (fast > slow and closes[i] > slow):
+            return 0.0
+        # Scale exposure down when trailing realized volatility is high.
+        # The target is 40% annualized, using only returns known at close i.
+        trailing_returns = [
+            closes[j] / closes[j - 1] - 1.0
+            for j in range(i - lookback + 1, i + 1)
+        ]
+        realized_daily_vol = pstdev(trailing_returns) if len(trailing_returns) > 1 else 0.0
+        target_daily_vol = 0.40 / math.sqrt(365.0)
+        return min(1.0, target_daily_vol / realized_daily_vol) if realized_daily_vol > 0 else 1.0
     # Strictly prior rolling high: today's close is not part of the threshold.
     prior_high = max(closes[i - lookback:i])
     return 1.0 if closes[i] > prior_high else 0.0
@@ -214,7 +230,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                      candidates=None, step_bars=None, fee_bps=10.0,
                      slippage_bps=5.0, periods_per_year=365.0,
                      bootstrap_trials=500, seed=7):
-    """Compare SMA, momentum and breakout candidates using rolling OOS folds."""
+    """Compare trend, breakout and volatility-targeted candidates using rolling OOS folds."""
     candidates = DEFAULT_CANDIDATES if candidates is None else candidates
     normalized = _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps)
     step = test_bars if step_bars is None else step_bars
