@@ -133,6 +133,36 @@ def _simulate(closes, start, end, family, lookback, cost, *,
 
 
 
+
+def _agent_council_diagnostics(closes, start, end):
+    """Aggregate auditable agent votes on held-out bars only."""
+    from .agents import run_agent_council
+
+    decisions = {}
+    votes = {"trend": {}, "momentum": {}, "regime": {}, "skeptic": {}}
+    confidence = []
+    observations = 0
+    for i in range(start, end):
+        report = run_agent_council(closes[:i + 1], max_allocation=1.0)
+        observations += 1
+        decisions[report.decision] = decisions.get(report.decision, 0) + 1
+        confidence.append(report.confidence)
+        for agent, vote in report.votes.items():
+            bucket = votes.setdefault(agent, {})
+            bucket[vote] = bucket.get(vote, 0) + 1
+    return {
+        "observations": observations,
+        "decision_counts": decisions,
+        "agent_vote_counts": votes,
+        "skeptic_intervention_count": (
+            votes["skeptic"].get("veto_disagreement", 0)
+            + votes["skeptic"].get("caution", 0)
+        ),
+        "mean_confidence": round(mean(confidence), 4) if confidence else None,
+        "interpretation": "Descriptive held-out diagnostics, not evidence of predictive accuracy.",
+    }
+
+
 def _position_diagnostics(closes, start, end, family, lookback, initial_position=0.0):
     """Return held exposure and turnover for each OOS return interval."""
     positions, turnovers, entries, exits = [], [], [], []
@@ -328,6 +358,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         family, lookback = chosen[1], chosen[2]
         test_start = cursor
         test_end = cursor + test_bars
+        if oos_start_index is None:
+            oos_start_index = test_start
+        oos_end_index = test_end
         # Include training history so the first test signal has sufficient lookback.
         contiguous_folds = step == test_bars
         fold_returns = _simulate(
@@ -452,6 +485,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "out_of_sample_returns": len(oos),
         "out_of_sample_metrics": _metrics(oos, _equity_curve(oos), periods_per_year),
         "out_of_sample_attribution": overall_attribution,
+        "agent_council_oos_diagnostics": _agent_council_diagnostics(closes, oos_start_index, oos_end_index),
         "selected_family_attribution": family_metrics,
         "buy_and_hold_metrics": _metrics(benchmark, _equity_curve(benchmark), periods_per_year),
         "cash_metrics": _metrics([0.0] * len(oos), _equity_curve([0.0] * len(oos)), periods_per_year),
