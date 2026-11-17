@@ -11,6 +11,7 @@ import random
 from statistics import mean, pstdev
 
 from .backtesting import BacktestError, Bar, _metrics
+from .agents import run_agent_council
 from .regime import classify_regime
 from .promotion import evaluate_paper_trial_eligibility
 
@@ -30,6 +31,8 @@ DEFAULT_CANDIDATES = [
     {"family": "breakout", "lookback": 20},
     {"family": "vol_target_sma", "lookback": 20},
     {"family": "defensive_vol_target_sma", "lookback": 20},
+    # Full multi-agent council; 48 bars covers the baseline trend warm-up.
+    {"family": "agent_council", "lookback": 48},
     # Explicit abstention baseline: staying in cash must be a selectable action.
     {"family": "cash", "lookback": 2},
 ]
@@ -57,10 +60,12 @@ def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
         if not isinstance(candidate, dict) or set(candidate) != {"family", "lookback"}:
             raise BacktestError("Candidates require exactly family and lookback")
         family, lookback = candidate["family"], candidate["lookback"]
-        if family not in {"sma", "momentum", "breakout", "vol_target_sma", "defensive_vol_target_sma", "cash"}:
+        if family not in {"sma", "momentum", "breakout", "vol_target_sma", "defensive_vol_target_sma", "agent_council", "cash"}:
             raise BacktestError("Unknown strategy family")
         if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 2 or lookback >= train_bars:
             raise BacktestError("lookback must be an integer >= 2 and smaller than train_bars")
+        if family == "agent_council" and lookback < 48:
+            raise BacktestError("agent_council lookback must be >= 48 for the baseline trend warm-up")
         item = (family, lookback)
         if item in normalized:
             raise BacktestError("Duplicate strategy candidates are not allowed")
@@ -76,6 +81,9 @@ def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
 def _signal(closes, i, family, lookback):
     if family == "cash":
         return 0.0
+    if family == "agent_council":
+        # Only closes through i are passed: future bars are unavailable to the council.
+        return run_agent_council(closes[:i + 1], max_allocation=1.0).signal.target_allocation
     if family == "sma":
         fast_window = max(1, lookback // 3)
         fast = sum(closes[i - fast_window + 1:i + 1]) / fast_window
