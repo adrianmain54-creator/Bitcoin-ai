@@ -145,42 +145,6 @@ def _attribution(returns, market_returns, positions, turnovers, entries, exits, 
 
 
 
-def _position_diagnostics(closes, start, end, family, lookback, initial_position=0.0):
-    """Return held exposure and turnover for each OOS return interval."""
-    positions, turnovers, entries, exits = [], [], [], []
-    previous = initial_position
-    for i in range(start, end):
-        target = _signal(closes, i, family, lookback)
-        positions.append(target)
-        turnovers.append(abs(target - previous))
-        if target > previous:
-            entries.append(i)
-        elif target < previous:
-            exits.append(i)
-        previous = target
-    return {"positions": positions, "turnovers": turnovers, "entries": entries, "exits": exits}
-
-
-def _attribution(returns, market_returns, positions, turnovers, entries, exits, cost):
-    """Summarize exposure, trade activity, gross contribution and estimated costs."""
-    count = len(returns)
-    gross = sum(position * market for position, market in zip(positions, market_returns))
-    cost_drag = sum(turnovers) * cost
-    return {
-        "observations": count,
-        "in_market_bars": sum(position > 0 for position in positions),
-        "exposure_pct": round(100 * sum(position > 0 for position in positions) / count, 4) if count else 0.0,
-        "average_exposure_pct": round(100 * sum(positions) / count, 4) if count else 0.0,
-        "entries": len(entries),
-        "exits": len(exits),
-        "turnover_events": sum(turnover > 0 for turnover in turnovers),
-        "total_turnover_units": round(sum(turnovers), 6),
-        "gross_market_return_contribution_pct": round(gross * 100, 4),
-        "estimated_cost_drag_pct": round(cost_drag * 100, 4),
-        "net_return_pct": round((math.prod(1 + value for value in returns) - 1) * 100, 4),
-    }
-
-
 def _bootstrap(returns, trials, seed, block_size=5):
     if not returns:
         return {"trials": 0, "final_equity_p05": None, "final_equity_median": None,
@@ -264,9 +228,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     oos_positions, oos_turnovers, oos_market_returns = [], [], []
     oos_entries, oos_exits = [], []
     family_attribution = {}
-    oos_positions, oos_turnovers, oos_market_returns = [], [], []
-    oos_entries, oos_exits = [], []
-    family_attribution = {}
     oos_position = 0.0
     stress_position = 0.0
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
@@ -306,11 +267,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             closes, test_start, test_end, family, lookback, cost,
             initial_position=oos_position if contiguous_folds and folds else 0.0,
             liquidate=not contiguous_folds,
-        )
-        # Track the same position path used by the simulator for attribution.
-        fold_initial_position = oos_position if contiguous_folds and folds else 0.0
-        diagnostics = _position_diagnostics(
-            closes, test_start, test_end, family, lookback, fold_initial_position
         )
         # Track the same position path used by the simulator for attribution.
         fold_initial_position = oos_position if contiguous_folds and folds else 0.0
@@ -421,8 +377,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
         "out_of_sample_metrics": _metrics(oos, _equity_curve(oos), periods_per_year),
-        "out_of_sample_attribution": overall_attribution,
-        "selected_family_attribution": family_metrics,
         "out_of_sample_attribution": overall_attribution,
         "selected_family_attribution": family_metrics,
         "buy_and_hold_metrics": _metrics(benchmark, _equity_curve(benchmark), periods_per_year),
