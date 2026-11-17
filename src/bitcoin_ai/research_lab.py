@@ -226,10 +226,17 @@ def _selection_score(returns, metrics, regime_labels=None, *,
     regime_penalty = abs(min(0.0, worst_regime_pct)) / 20.0
     turnover_per_100_bars = turnover_units / max(1, len(returns)) * 100.0
     turnover_penalty = turnover_penalty_weight * turnover_per_100_bars
+    # Penalize the average of the worst 5% of training bars, not just peak-to-
+    # trough drawdown. This discourages candidates with ugly single-bar tails.
+    tail_count = max(1, math.ceil(len(returns) * 0.05))
+    worst_tail_pct = mean(sorted(returns)[:tail_count]) * 100.0
+    tail_loss_penalty = abs(min(0.0, worst_tail_pct)) / 10.0
     score = (metrics["sortino_ratio"] - drawdown_penalty + positive_share
-             - worst_segment_penalty - regime_penalty - turnover_penalty)
+             - worst_segment_penalty - regime_penalty - turnover_penalty
+             - tail_loss_penalty)
     return (score, positive_share, worst_segment_pct, worst_regime_pct,
-            len(regime_means), turnover_per_100_bars, turnover_penalty)
+            len(regime_means), turnover_per_100_bars, turnover_penalty,
+            worst_tail_pct, tail_loss_penalty)
 
 
 def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
@@ -300,11 +307,13 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 turnover_units=training_turnover,
             )
             (score, positive_share, worst_segment_pct, worst_regime_pct,
-             regime_coverage, turnover_per_100_bars, turnover_penalty) = score_result
+             regime_coverage, turnover_per_100_bars, turnover_penalty,
+             worst_tail_pct, tail_loss_penalty) = score_result
             scored.append((score, family, lookback, stress_metrics, positive_share,
                            worst_segment_pct, worst_regime_pct, regime_coverage,
                            base_metrics, training_turnover, training_cost_drag_pct,
-                           turnover_per_100_bars, turnover_penalty))
+                           turnover_per_100_bars, turnover_penalty,
+                           worst_tail_pct, tail_loss_penalty))
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
@@ -373,6 +382,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "training_cost_drag_at_2x_pct": round(chosen[10], 4),
             "training_turnover_per_100_bars": round(chosen[11], 4),
             "training_turnover_penalty": round(chosen[12], 4),
+            "training_worst_5pct_bar_return_pct": round(chosen[13], 4),
+            "training_tail_loss_penalty": round(chosen[14], 4),
             "training_positive_segment_share": round(chosen[4], 4),
             "training_worst_segment_return_pct": round(chosen[5], 4),
             "training_worst_regime_return_pct": round(chosen[6], 4),
@@ -447,7 +458,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "warning": "Selection frequency is descriptive and does not establish superiority.",
         },
         "folds": folds,
-        "selection_policy": "Maximize training Sortino calculated after doubling estimated fees and slippage, minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, minus 0.05 times the absolute worst negative training-regime return percentage, and minus 0.05 times training turnover units per 100 scored bars. Turnover includes terminal liquidation. Turnover penalty is a modest regularizer in addition to directly modeled execution costs, not a substitute for fees. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
+        "selection_policy": "Maximize training Sortino calculated after doubling estimated fees and slippage, minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, minus 0.05 times the absolute worst negative training-regime return percentage, and minus 0.05 times training turnover units per 100 scored bars, and minus one tenth of the average return of the worst 5% of training bars (if negative). Turnover includes terminal liquidation. Turnover penalty is a modest regularizer in addition to directly modeled execution costs, not a substitute for fees. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
