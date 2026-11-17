@@ -113,6 +113,11 @@ def test_strategy_lab_reports_training_consistency_diagnostics():
     for fold in result["folds"]:
         assert 0.0 <= fold["training_positive_segment_share"] <= 1.0
         assert isinstance(fold["training_worst_segment_return_pct"], float)
+        assert "training_sortino_at_2x_cost" in fold
+        assert "training_base_cost_sortino" in fold
+        assert fold["training_turnover_units"] >= 0
+        assert fold["training_cost_drag_at_2x_pct"] >= 0
+    assert "doubling estimated fees and slippage" in result["selection_policy"]
     assert "positive-segment share" in result["selection_policy"]
 
 
