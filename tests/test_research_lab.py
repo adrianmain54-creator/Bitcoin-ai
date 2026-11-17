@@ -121,6 +121,11 @@ def test_strategy_lab_reports_training_consistency_diagnostics():
         assert fold["training_turnover_penalty"] >= 0
         assert isinstance(fold["training_worst_5pct_bar_return_pct"], float)
         assert fold["training_tail_loss_penalty"] >= 0
+        ranking = fold["training_candidate_ranking"]
+        assert len(ranking) == 2
+        assert ranking[0]["training_score"] >= ranking[1]["training_score"]
+        assert ranking[0]["score_gap_from_best"] == 0
+        assert fold["training_winner_margin"] >= 0
     assert "doubling estimated fees and slippage" in result["selection_policy"]
     assert "positive-segment share" in result["selection_policy"]
 
