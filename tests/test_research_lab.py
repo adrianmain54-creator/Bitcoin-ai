@@ -258,3 +258,22 @@ def test_volatility_targeted_sma_is_zero_without_uptrend():
 
     closes = [100.0 - i * 0.5 for i in range(25)]
     assert _signal(closes, 23, "vol_target_sma", 20) == 0.0
+
+
+def test_defensive_volatility_target_caps_exposure_and_reduces_risk():
+    from bitcoin_ai.research_lab import _signal
+
+    closes = [100.0]
+    for i in range(1, 25):
+        closes.append(closes[-1] * (1.04 if i % 2 else 0.985))
+    regular = _signal(closes, 23, "vol_target_sma", 20)
+    defensive = _signal(closes, 23, "defensive_vol_target_sma", 20)
+    assert 0.0 < defensive <= 0.50
+    assert defensive < regular
+
+
+def test_defensive_volatility_target_is_zero_without_uptrend():
+    from bitcoin_ai.research_lab import _signal
+
+    closes = [100.0 - i * 0.5 for i in range(25)]
+    assert _signal(closes, 23, "defensive_vol_target_sma", 20) == 0.0
