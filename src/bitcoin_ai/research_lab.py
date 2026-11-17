@@ -273,11 +273,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                                 lookback=regime_lookback)["regime"]
                 for i in range(train_start, cursor - 1)
             ]
-            score, positive_share, worst_segment_pct, worst_regime_pct, regime_coverage = (
-                _selection_score(
-                    stress_train_returns, stress_metrics, train_regimes,
-                    turnover_units=training_turnover,
-                )
+            score_result = _selection_score(
+                stress_train_returns, stress_metrics, train_regimes,
+                turnover_units=training_turnover,
             )
             (score, positive_share, worst_segment_pct, worst_regime_pct,
              regime_coverage, turnover_per_100_bars, turnover_penalty) = score_result
