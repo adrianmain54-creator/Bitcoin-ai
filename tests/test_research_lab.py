@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from bitcoin_ai.backtesting import BacktestError, Bar
-from bitcoin_ai.research_lab import run_strategy_lab, _selection_score
+from bitcoin_ai.research_lab import run_strategy_lab, _selection_score, _simulate
 
 
 def bars(count=260):
@@ -173,3 +173,20 @@ def test_regime_classification_uses_only_bounded_trailing_slice(monkeypatch):
     )
     assert observed_lengths
     assert max(observed_lengths) <= 21
+
+
+
+def test_contiguous_simulation_can_carry_position_without_forced_fold_exit():
+    closes = [100.0, 101.0, 102.0, 103.0, 104.0]
+    carried = _simulate(
+        closes, 2, 4, "momentum", 2, 0.001,
+        initial_position=1.0, liquidate=False,
+    )
+    forcibly_closed = _simulate(
+        closes, 2, 4, "momentum", 2, 0.001,
+        initial_position=1.0, liquidate=True,
+    )
+    assert len(carried) == 2
+    assert carried[0] == pytest.approx(103.0 / 102.0 - 1.0)
+    assert carried[1] == pytest.approx(104.0 / 103.0 - 1.0)
+    assert forcibly_closed[-1] == pytest.approx(carried[-1] - 0.001)
