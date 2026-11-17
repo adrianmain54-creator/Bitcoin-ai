@@ -248,7 +248,7 @@ def test_volatility_targeted_sma_scales_exposure_using_trailing_returns():
     # trend signal active but reduce position size below full exposure.
     closes = [100.0]
     for i in range(1, 25):
-        closes.append(closes[-1] * (1.012 if i % 2 else 0.998))
+        closes.append(closes[-1] * (1.04 if i % 2 else 0.985))
     position = _signal(closes, 23, "vol_target_sma", 20)
     assert 0.0 < position < 1.0
 
