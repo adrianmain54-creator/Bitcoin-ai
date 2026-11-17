@@ -185,8 +185,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     regime_lookback = min(20, max(3, train_bars - 1))
     while cursor + test_bars < len(bars):
         scored = []
+        # Every candidate must be scored on the same effective training dates.
+        # The longest warm-up is shared so candidates are compared fairly.
+        train_start = cursor - train_bars + max(max(lookback for _, lookback in normalized), regime_lookback)
         for family, lookback in normalized:
-            train_start = cursor - train_bars + max(lookback, regime_lookback)
             train_returns = _simulate(closes, train_start, cursor - 1, family, lookback, cost)
             if not train_returns:
                 continue
@@ -194,7 +196,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             metrics = _metrics(train_returns, equity, periods_per_year)
             # Regimes use only trailing observations available at each training close.
             train_regimes = [
-                classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
+                classify_regime(closes[max(0, i - regime_lookback):i + 1],
+                                lookback=regime_lookback)["regime"]
                 for i in range(train_start, cursor - 1)
             ]
             score, positive_share, worst_segment_pct, worst_regime_pct, regime_coverage = (
@@ -215,7 +218,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         market_returns = [closes[i + 1] / closes[i] - 1 for i in range(test_start, test_end)]
         fold_regimes = []
         for i in range(test_start, test_end):
-            label = classify_regime(closes[:i + 1], lookback=regime_lookback)["regime"]
+            label = classify_regime(closes[max(0, i - regime_lookback):i + 1],
+                                    lookback=regime_lookback)["regime"]
             regime_counts[label] += 1
             fold_regimes.append(label)
         oos.extend(fold_returns)
@@ -226,6 +230,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         folds.append({
             "train_start": bars[cursor - train_bars].timestamp.isoformat(),
             "train_end": bars[cursor - 1].timestamp.isoformat(),
+            "training_scoring_start": bars[train_start].timestamp.isoformat(),
+            "training_scoring_observations": len(_simulate(closes, train_start, cursor - 1, family, lookback, cost)),
             "test_start": bars[test_start].timestamp.isoformat(),
             "test_end": bars[test_end].timestamp.isoformat(),
             "selected_family": family, "selected_lookback": lookback,
@@ -277,6 +283,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
             "Block bootstrap resamples concatenated fold returns; fold boundaries and changing market structure limit interpretation.",
             "Regime-conditioned metrics are descriptive, can have small samples, and are not used to select strategies.",
+            "All candidates in a fold are scored on identical effective training dates after the shared maximum warm-up.",
             "The 2x-cost scenario is a sensitivity check, not a calibrated execution-cost forecast.",
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
         ],
