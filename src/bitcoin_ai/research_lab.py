@@ -29,6 +29,7 @@ DEFAULT_CANDIDATES = [
     {"family": "momentum", "lookback": 10},
     {"family": "breakout", "lookback": 20},
     {"family": "vol_target_sma", "lookback": 20},
+    {"family": "defensive_vol_target_sma", "lookback": 20},
     # Explicit abstention baseline: staying in cash must be a selectable action.
     {"family": "cash", "lookback": 2},
 ]
@@ -56,7 +57,7 @@ def _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps):
         if not isinstance(candidate, dict) or set(candidate) != {"family", "lookback"}:
             raise BacktestError("Candidates require exactly family and lookback")
         family, lookback = candidate["family"], candidate["lookback"]
-        if family not in {"sma", "momentum", "breakout", "vol_target_sma", "cash"}:
+        if family not in {"sma", "momentum", "breakout", "vol_target_sma", "defensive_vol_target_sma", "cash"}:
             raise BacktestError("Unknown strategy family")
         if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 2 or lookback >= train_bars:
             raise BacktestError("lookback must be an integer >= 2 and smaller than train_bars")
@@ -82,21 +83,26 @@ def _signal(closes, i, family, lookback):
         return 1.0 if fast > slow and closes[i] > slow else 0.0
     if family == "momentum":
         return 1.0 if closes[i] > closes[i - lookback] else 0.0
-    if family == "vol_target_sma":
+    if family in {"vol_target_sma", "defensive_vol_target_sma"}:
         fast_window = max(1, lookback // 3)
         fast = sum(closes[i - fast_window + 1:i + 1]) / fast_window
         slow = sum(closes[i - lookback + 1:i + 1]) / lookback
         if not (fast > slow and closes[i] > slow):
             return 0.0
-        # Scale exposure down when trailing realized volatility is high.
-        # The target is 40% annualized, using only returns known at close i.
+        # Both variants use trailing volatility known at close i. The defensive
+        # variant targets 20% annualized volatility and caps exposure at 50%.
         trailing_returns = [
             closes[j] / closes[j - 1] - 1.0
             for j in range(i - lookback + 1, i + 1)
         ]
         realized_daily_vol = pstdev(trailing_returns) if len(trailing_returns) > 1 else 0.0
-        target_daily_vol = 0.40 / math.sqrt(365.0)
-        return min(1.0, target_daily_vol / realized_daily_vol) if realized_daily_vol > 0 else 1.0
+        if family == "defensive_vol_target_sma":
+            target_daily_vol = 0.20 / math.sqrt(365.0)
+            max_exposure = 0.50
+        else:
+            target_daily_vol = 0.40 / math.sqrt(365.0)
+            max_exposure = 1.0
+        return min(max_exposure, target_daily_vol / realized_daily_vol) if realized_daily_vol > 0 else max_exposure
     # Strictly prior rolling high: today's close is not part of the threshold.
     prior_high = max(closes[i - lookback:i])
     return 1.0 if closes[i] > prior_high else 0.0
@@ -421,7 +427,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "interpretation": "Descriptive results only for folds where this family was selected; selection is adaptive.",
         }
     report = {
-        "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis and cost stress",
+        "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, and cost stress",
         "families": sorted({family for family, _ in normalized}),
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
