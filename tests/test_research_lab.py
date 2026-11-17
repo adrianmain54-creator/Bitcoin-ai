@@ -95,8 +95,8 @@ def test_selection_score_rewards_consistency_and_penalizes_bad_segments():
     metrics = {"sortino_ratio": 1.0, "max_drawdown_pct": -5.0}
     steady = [0.01] * 40
     volatile = [0.05] * 10 + [0.01] * 10 + [-0.08] * 10 + [0.01] * 10
-    steady_score, steady_share, steady_worst, _, _ = _selection_score(steady, metrics)
-    volatile_score, volatile_share, volatile_worst, _, _ = _selection_score(volatile, metrics)
+    steady_score, steady_share, steady_worst, _, _, _, _ = _selection_score(steady, metrics)
+    volatile_score, volatile_share, volatile_worst, _, _, _, _ = _selection_score(volatile, metrics)
     assert steady_share == 1.0
     assert steady_worst > 0
     assert volatile_share < steady_share
@@ -117,6 +117,8 @@ def test_strategy_lab_reports_training_consistency_diagnostics():
         assert "training_base_cost_sortino" in fold
         assert fold["training_turnover_units"] >= 0
         assert fold["training_cost_drag_at_2x_pct"] >= 0
+        assert fold["training_turnover_per_100_bars"] >= 0
+        assert fold["training_turnover_penalty"] >= 0
     assert "doubling estimated fees and slippage" in result["selection_policy"]
     assert "positive-segment share" in result["selection_policy"]
 
@@ -127,7 +129,7 @@ def test_regime_selection_penalizes_weak_training_regime():
     returns = [0.01] * 12 + [-0.03] * 12
     regimes = ["uptrend"] * 12 + ["downtrend"] * 12
     balanced = ["uptrend"] * 12 + ["downtrend"] * 12
-    _, _, _, weak_regime, coverage = _selection_score(returns, metrics, regimes)
+    _, _, _, weak_regime, coverage, _, _ = _selection_score(returns, metrics, regimes)
     assert weak_regime < 0
     assert coverage == 2
 
@@ -220,3 +222,19 @@ def test_strategy_lab_reports_exposure_trade_and_regime_attribution():
         assert family["folds_selected"] > 0
     for regime in result["out_of_sample_regime_metrics"].values():
         assert regime["attribution"]["observations"] == regime["observations"]
+
+
+
+def test_selection_score_penalizes_excessive_turnover():
+    metrics = {"sortino_ratio": 1.0, "max_drawdown_pct": -5.0}
+    returns = [0.001] * 100
+    low_turnover = _selection_score(
+        returns, metrics, turnover_units=2.0
+    )
+    high_turnover = _selection_score(
+        returns, metrics, turnover_units=20.0
+    )
+    assert low_turnover[0] > high_turnover[0]
+    assert low_turnover[5] == pytest.approx(2.0)
+    assert high_turnover[5] == pytest.approx(20.0)
+    assert high_turnover[6] > low_turnover[6]
