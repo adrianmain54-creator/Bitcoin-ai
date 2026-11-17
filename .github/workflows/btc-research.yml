@@ -88,10 +88,33 @@ jobs:
               day += timedelta(days=1)
 
           ordered = sorted(records.items())
-          if len(ordered) < 906:
-              raise SystemExit(f"Need at least 906 completed daily candles for six 90-bar OOS folds; found {len(ordered)}")
+          expected_start = datetime(2017, 8, 17, tzinfo=timezone.utc).date()
+          expected_days = (yesterday - expected_start).days + 1
+          actual_dates = [
+              datetime.fromtimestamp(open_ms / 1000, timezone.utc).date()
+              for open_ms, _ in ordered
+          ]
+          if not actual_dates or actual_dates[0] > expected_start + timedelta(days=3):
+              raise SystemExit(
+                  f"History starts too late: expected around {expected_start}, "
+                  f"found {actual_dates[0] if actual_dates else 'no candles'}"
+              )
+          coverage = len(ordered) / expected_days
+          if coverage < 0.98:
+              raise SystemExit(
+                  f"Historical coverage too low: {len(ordered)} of {expected_days} "
+                  f"expected daily candles ({coverage:.1%}); refusing incomplete data"
+              )
+          largest_gap = max(
+              ((right - left).days for left, right in zip(actual_dates, actual_dates[1:])),
+              default=1,
+          )
+          if largest_gap > 3:
+              raise SystemExit(
+                  f"Historical data contains a {largest_gap}-day gap; refusing incomplete data"
+              )
 
-          latest_date = datetime.fromtimestamp(ordered[-1][0] / 1000, timezone.utc).date()
+          latest_date = actual_dates[-1]
           if (now.date() - latest_date).days > 3:
               raise SystemExit(f"Downloaded data is stale: latest candle {latest_date}, current UTC date {now.date()}")
 
