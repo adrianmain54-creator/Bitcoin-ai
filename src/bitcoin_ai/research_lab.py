@@ -240,10 +240,25 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         train_start = cursor - train_bars + max(max(lookback for _, lookback in normalized), regime_lookback)
         for family, lookback in normalized:
             train_returns = _simulate(closes, train_start, cursor - 1, family, lookback, cost)
-            if not train_returns:
+            # Select against doubled estimated costs, not just the base-cost case.
+            # This makes fee sensitivity part of training selection rather than
+            # a report-only diagnostic after a candidate has already been chosen.
+            stress_train_returns = _simulate(
+                closes, train_start, cursor - 1, family, lookback, cost * 2
+            )
+            if not train_returns or not stress_train_returns:
                 continue
-            equity = _equity_curve(train_returns)
-            metrics = _metrics(train_returns, equity, periods_per_year)
+            base_metrics = _metrics(
+                train_returns, _equity_curve(train_returns), periods_per_year
+            )
+            stress_metrics = _metrics(
+                stress_train_returns, _equity_curve(stress_train_returns), periods_per_year
+            )
+            train_diagnostics = _position_diagnostics(
+                closes, train_start, cursor - 1, family, lookback
+            )
+            training_turnover = sum(train_diagnostics["turnovers"])
+            training_cost_drag_pct = training_turnover * cost * 2 * 100
             # Regimes use only trailing observations available at each training close.
             train_regimes = [
                 classify_regime(closes[max(0, i - regime_lookback):i + 1],
@@ -251,10 +266,11 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 for i in range(train_start, cursor - 1)
             ]
             score, positive_share, worst_segment_pct, worst_regime_pct, regime_coverage = (
-                _selection_score(train_returns, metrics, train_regimes)
+                _selection_score(stress_train_returns, stress_metrics, train_regimes)
             )
-            scored.append((score, family, lookback, metrics, positive_share,
-                           worst_segment_pct, worst_regime_pct, regime_coverage))
+            scored.append((score, family, lookback, stress_metrics, positive_share,
+                           worst_segment_pct, worst_regime_pct, regime_coverage,
+                           base_metrics, training_turnover, training_cost_drag_pct))
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
@@ -317,7 +333,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "test_end": bars[test_end].timestamp.isoformat(),
             "selected_family": family, "selected_lookback": lookback,
             "training_selection_score": round(chosen[0], 4),
-            "training_sortino": chosen[3]["sortino_ratio"],
+            "training_sortino_at_2x_cost": chosen[3]["sortino_ratio"],
+            "training_base_cost_sortino": chosen[8]["sortino_ratio"],
+            "training_turnover_units": round(chosen[9], 6),
+            "training_cost_drag_at_2x_pct": round(chosen[10], 4),
             "training_positive_segment_share": round(chosen[4], 4),
             "training_worst_segment_return_pct": round(chosen[5], 4),
             "training_worst_regime_return_pct": round(chosen[6], 4),
@@ -392,7 +411,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "warning": "Selection frequency is descriptive and does not establish superiority.",
         },
         "folds": folds,
-        "selection_policy": "Maximize training Sortino minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, and minus 0.05 times the absolute worst negative training-regime return percentage. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
+        "selection_policy": "Maximize training Sortino calculated after doubling estimated fees and slippage, minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, and minus 0.05 times the absolute worst negative training-regime return percentage. Turnover and doubled-cost drag are recorded for each selected candidate. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
