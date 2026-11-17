@@ -330,3 +330,35 @@ def test_agent_council_candidate_rejects_insufficient_warmup():
             candidates=[{"family": "agent_council", "lookback": 20}],
             bootstrap_trials=100,
         )
+
+
+def test_agent_council_exposure_caps_scale_the_same_signal():
+    from bitcoin_ai.research_lab import _signal
+
+    closes = [100.0 + i for i in range(60)]
+    full = _signal(closes, 59, "agent_council", 48)
+    half = _signal(closes, 59, "agent_council_50", 48)
+    quarter = _signal(closes, 59, "agent_council_25", 48)
+    assert full > 0
+    assert half == pytest.approx(full * 0.5)
+    assert quarter == pytest.approx(full * 0.25)
+
+
+@pytest.mark.parametrize("family", ["agent_council_50", "agent_council_25"])
+def test_risk_capped_agent_council_candidates_are_researchable(family):
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": family, "lookback": 48}, {"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    assert family in result["families"]
+    assert sum(result["training_selection_counts"].values()) == result["fold_count"]
+
+
+def test_risk_capped_agent_council_rejects_insufficient_warmup():
+    with pytest.raises(BacktestError, match="agent council lookback must be >= 48"):
+        run_strategy_lab(
+            bars(), train_bars=100, test_bars=30,
+            candidates=[{"family": "agent_council_50", "lookback": 20}],
+            bootstrap_trials=100,
+        )
