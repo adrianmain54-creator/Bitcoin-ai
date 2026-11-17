@@ -181,8 +181,9 @@ def _bootstrap(returns, trials, seed, block_size=5):
     }
 
 
-def _selection_score(returns, metrics, regime_labels=None):
-    """Score training candidates for risk-adjusted return and segment consistency."""
+def _selection_score(returns, metrics, regime_labels=None, *,
+                    turnover_units=0.0, turnover_penalty_weight=0.05):
+    """Score training candidates, including a small normalized turnover regularizer."""
     segment_count = min(4, len(returns))
     segment_returns = []
     for index in range(segment_count):
@@ -201,8 +202,12 @@ def _selection_score(returns, metrics, regime_labels=None):
                 regime_means.append((label, math.prod(1.0 + value for value in bucket) - 1.0))
     worst_regime_pct = min((value * 100.0 for _, value in regime_means), default=0.0)
     regime_penalty = abs(min(0.0, worst_regime_pct)) / 20.0
-    score = metrics["sortino_ratio"] - drawdown_penalty + positive_share - worst_segment_penalty - regime_penalty
-    return score, positive_share, worst_segment_pct, worst_regime_pct, len(regime_means)
+    turnover_per_100_bars = turnover_units / max(1, len(returns)) * 100.0
+    turnover_penalty = turnover_penalty_weight * turnover_per_100_bars
+    score = (metrics["sortino_ratio"] - drawdown_penalty + positive_share
+             - worst_segment_penalty - regime_penalty - turnover_penalty)
+    return (score, positive_share, worst_segment_pct, worst_regime_pct,
+            len(regime_means), turnover_per_100_bars, turnover_penalty)
 
 
 def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
@@ -257,7 +262,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             train_diagnostics = _position_diagnostics(
                 closes, train_start, cursor - 1, family, lookback
             )
+            # Include the terminal liquidation, matching _simulate's training cost.
             training_turnover = sum(train_diagnostics["turnovers"])
+            if train_diagnostics["positions"] and train_diagnostics["positions"][-1]:
+                training_turnover += train_diagnostics["positions"][-1]
             training_cost_drag_pct = training_turnover * cost * 2 * 100
             # Regimes use only trailing observations available at each training close.
             train_regimes = [
@@ -266,11 +274,17 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 for i in range(train_start, cursor - 1)
             ]
             score, positive_share, worst_segment_pct, worst_regime_pct, regime_coverage = (
-                _selection_score(stress_train_returns, stress_metrics, train_regimes)
+                _selection_score(
+                    stress_train_returns, stress_metrics, train_regimes,
+                    turnover_units=training_turnover,
+                )
             )
+            (score, positive_share, worst_segment_pct, worst_regime_pct,
+             regime_coverage, turnover_per_100_bars, turnover_penalty) = score_result
             scored.append((score, family, lookback, stress_metrics, positive_share,
                            worst_segment_pct, worst_regime_pct, regime_coverage,
-                           base_metrics, training_turnover, training_cost_drag_pct))
+                           base_metrics, training_turnover, training_cost_drag_pct,
+                           turnover_per_100_bars, turnover_penalty))
         if not scored:
             raise BacktestError("Training window produced no candidate scores")
         chosen = max(scored, key=lambda item: (item[0], item[1], -item[2]))
@@ -337,6 +351,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "training_base_cost_sortino": chosen[8]["sortino_ratio"],
             "training_turnover_units": round(chosen[9], 6),
             "training_cost_drag_at_2x_pct": round(chosen[10], 4),
+            "training_turnover_per_100_bars": round(chosen[11], 4),
+            "training_turnover_penalty": round(chosen[12], 4),
             "training_positive_segment_share": round(chosen[4], 4),
             "training_worst_segment_return_pct": round(chosen[5], 4),
             "training_worst_regime_return_pct": round(chosen[6], 4),
@@ -411,7 +427,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "warning": "Selection frequency is descriptive and does not establish superiority.",
         },
         "folds": folds,
-        "selection_policy": "Maximize training Sortino calculated after doubling estimated fees and slippage, minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, and minus 0.05 times the absolute worst negative training-regime return percentage. Turnover and doubled-cost drag are recorded for each selected candidate. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
+        "selection_policy": "Maximize training Sortino calculated after doubling estimated fees and slippage, minus 0.1 times absolute training max drawdown percentage, plus positive-segment share, minus 0.1 times the absolute worst negative segment return percentage, minus 0.05 times the absolute worst negative training-regime return percentage, and minus 0.05 times training turnover units per 100 scored bars. Turnover includes terminal liquidation. Turnover penalty is a modest regularizer in addition to directly modeled execution costs, not a substitute for fees. Regimes use trailing observations available at each training timestamp; regime buckets require at least 3 observations. Deterministic tie-break; test data never selects parameters.",
         "limitations": [
             "Close-only signals execute on the next close-to-close interval; estimated fee and slippage are charged on position changes and fold liquidation.",
             "No spread, market impact, partial fills, funding, taxes, outages, or latency are modeled.",
