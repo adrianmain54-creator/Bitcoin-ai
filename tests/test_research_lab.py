@@ -238,3 +238,23 @@ def test_selection_score_penalizes_excessive_turnover():
     assert low_turnover[5] == pytest.approx(2.0)
     assert high_turnover[5] == pytest.approx(20.0)
     assert high_turnover[6] > low_turnover[6]
+
+
+
+def test_volatility_targeted_sma_scales_exposure_using_trailing_returns():
+    from bitcoin_ai.research_lab import _signal
+
+    # A clean uptrend with alternating larger daily moves should keep the
+    # trend signal active but reduce position size below full exposure.
+    closes = [100.0]
+    for i in range(1, 25):
+        closes.append(closes[-1] * (1.012 if i % 2 else 0.998))
+    position = _signal(closes, 23, "vol_target_sma", 20)
+    assert 0.0 < position < 1.0
+
+
+def test_volatility_targeted_sma_is_zero_without_uptrend():
+    from bitcoin_ai.research_lab import _signal
+
+    closes = [100.0 - i * 0.5 for i in range(25)]
+    assert _signal(closes, 23, "vol_target_sma", 20) == 0.0
