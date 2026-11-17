@@ -216,16 +216,16 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         test_start = cursor
         test_end = cursor + test_bars
         # Include training history so the first test signal has sufficient lookback.
-        contiguous_folds = not folds or step == test_bars
+        contiguous_folds = step == test_bars
         fold_returns = _simulate(
             closes, test_start, test_end, family, lookback, cost,
-            initial_position=oos_position if contiguous_folds else 0.0,
+            initial_position=oos_position if contiguous_folds and folds else 0.0,
             liquidate=not contiguous_folds,
         )
         # Keep the training-selected candidate fixed while doubling estimated costs.
         stress_returns = _simulate(
             closes, test_start, test_end, family, lookback, cost * 2,
-            initial_position=stress_position if contiguous_folds else 0.0,
+            initial_position=stress_position if contiguous_folds and folds else 0.0,
             liquidate=not contiguous_folds,
         )
         oos_position = _signal(closes, test_end - 1, family, lookback)
