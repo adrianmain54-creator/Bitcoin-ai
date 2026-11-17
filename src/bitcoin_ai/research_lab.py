@@ -304,6 +304,11 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     stress_position = 0.0
     regime_counts = {"uptrend": 0, "downtrend": 0, "range": 0, "high_volatility": 0}
     selection_counts = {family: 0 for family, _ in normalized}
+    # Counterfactual fixed-candidate portfolios share every held-out interval.
+    comparison_returns = {item: [] for item in normalized}
+    comparison_stress_returns = {item: [] for item in normalized}
+    comparison_positions = {item: 0.0 for item in normalized}
+    comparison_stress_positions = {item: 0.0 for item in normalized}
     regime_lookback = min(20, max(3, train_bars - 1))
     oos_start_index = None
     oos_end_index = None
@@ -384,6 +389,25 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         oos_position = _signal(closes, test_end - 1, family, lookback)
         stress_position = oos_position
         market_returns = [closes[i + 1] / closes[i] - 1 for i in range(test_start, test_end)]
+        # Evaluate every fixed candidate on these exact held-out bars, independent
+        # of which candidate the adaptive selector chose for this fold.
+        for candidate in normalized:
+            candidate_family, candidate_lookback = candidate
+            initial = comparison_positions[candidate] if contiguous_folds and folds else 0.0
+            stress_initial = comparison_stress_positions[candidate] if contiguous_folds and folds else 0.0
+            candidate_returns = _simulate(
+                closes, test_start, test_end, candidate_family, candidate_lookback,
+                cost, initial_position=initial, liquidate=not contiguous_folds,
+            )
+            candidate_stress = _simulate(
+                closes, test_start, test_end, candidate_family, candidate_lookback,
+                cost * 2, initial_position=stress_initial, liquidate=not contiguous_folds,
+            )
+            comparison_returns[candidate].extend(candidate_returns)
+            comparison_stress_returns[candidate].extend(candidate_stress)
+            next_position = _signal(closes, test_end - 1, candidate_family, candidate_lookback)
+            comparison_positions[candidate] = next_position
+            comparison_stress_positions[candidate] = next_position
         fold_regimes = []
         for i in range(test_start, test_end):
             label = classify_regime(closes[max(0, i - regime_lookback):i + 1],
@@ -446,6 +470,14 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         oos_turnovers[-1] += oos_position
         if oos_position:
             oos_exits.append(len(oos) - 1)
+    if step == test_bars:
+        for candidate in normalized:
+            position = comparison_positions[candidate]
+            if position and comparison_returns[candidate]:
+                comparison_returns[candidate][-1] -= position * cost
+            stress_position_for_candidate = comparison_stress_positions[candidate]
+            if stress_position_for_candidate and comparison_stress_returns[candidate]:
+                comparison_stress_returns[candidate][-1] -= stress_position_for_candidate * cost * 2
     # Regime buckets are descriptive slices of held-out returns, never tuning inputs.
     regime_metrics = {}
     for label in regime_counts:
@@ -480,8 +512,33 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             ),
             "interpretation": "Descriptive results only for folds where this family was selected; selection is adaptive.",
         }
+    benchmark_equity = math.prod(1.0 + value for value in benchmark)
+    fixed_candidate_comparison = {}
+    for family, lookback in normalized:
+        key = f"{family}:{lookback}"
+        candidate_returns = comparison_returns[(family, lookback)]
+        candidate_equity = math.prod(1.0 + value for value in candidate_returns)
+        fixed_candidate_comparison[key] = {
+            "family": family,
+            "lookback": lookback,
+            "observations": len(candidate_returns),
+            "metrics": _metrics(candidate_returns, _equity_curve(candidate_returns), periods_per_year),
+            "return_pct": round((candidate_equity - 1.0) * 100.0, 4),
+            "excess_return_vs_buy_and_hold_pct_points": round((candidate_equity - benchmark_equity) * 100.0, 4),
+            "metrics_at_2x_cost": _metrics(
+                comparison_stress_returns[(family, lookback)],
+                _equity_curve(comparison_stress_returns[(family, lookback)]),
+                periods_per_year,
+            ),
+        }
     report = {
-        "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, and cost stress",
+        "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
+        "fixed_candidate_oos_comparison": {
+            "candidates": fixed_candidate_comparison,
+            "observations_per_candidate": len(benchmark),
+            "buy_and_hold_return_pct": round((benchmark_equity - 1.0) * 100.0, 4),
+            "interpretation": "Every listed candidate is run on the same held-out intervals with identical costs and no fold-by-fold winner selection. Candidate definitions were specified before evaluating these held-out results; these comparisons are descriptive, not proof of future performance.",
+        },
         "families": sorted({family for family, _ in normalized}),
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
