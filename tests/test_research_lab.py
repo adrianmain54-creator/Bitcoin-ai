@@ -593,3 +593,35 @@ def test_research_report_includes_independent_validation_roles():
     assert validation["proposer"]["fixed_candidates"] == ["cash:2", "momentum:8"]
     assert set(validation["skeptic"]["candidate_reviews"]) == {"cash:2", "momentum:8"}
     assert validation["evidence_reviewer"]["candidate_review_coverage"] == 2
+
+
+
+def test_research_lab_reports_holdout_records_and_requires_prior_ledger_for_freshness():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    audit = result["holdout_reuse_audit"]
+    assert audit["status"] == "no_prior_ledger_supplied"
+    assert audit["eligible_for_fresh_holdout_review"] is False
+    assert len(audit["ledger_records_to_append"]) == result["fold_count"]
+    assert all(len(item["dataset_fingerprint"]) == 64 for item in audit["ledger_records_to_append"])
+
+
+def test_research_lab_flags_reused_oos_windows_from_supplied_ledger():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    records = result["holdout_reuse_audit"]["ledger_records_to_append"]
+    repeated = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100, previous_holdout_experiments=records,
+    )
+    audit = repeated["holdout_reuse_audit"]
+    assert audit["status"] == "reuse_detected"
+    assert audit["eligible_for_fresh_holdout_review"] is False
+    assert all(item["status"] == "reuse_detected" for item in audit["fold_audits"])
