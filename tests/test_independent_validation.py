@@ -134,3 +134,60 @@ def test_regime_diagnostic_does_not_overinterpret_small_samples():
     )
     assert result["verdict"] == "eligible_for_paper_review"
     assert result["evidence_reviewer"]["regime_diagnostics"]["candidate"]["adequately_sampled_regimes"] == []
+
+
+def test_nearby_parameter_variant_erasing_edge_requires_review():
+    strong = passing_candidate()
+    strong.update({
+        "family": "momentum",
+        "lookback": 10,
+        "observations": 240,
+        "excess_return_vs_buy_and_hold_pct_points": 2.5,
+    })
+    nearby = passing_candidate()
+    nearby.update({
+        "family": "momentum",
+        "lookback": 12,
+        "observations": 240,
+        "excess_return_vs_buy_and_hold_pct_points": -0.4,
+    })
+    result = evaluate_independent_strategy_validation(
+        {"momentum:10": strong, "momentum:12": nearby},
+        {"usable": True, "status": "pass"},
+    )
+    assert result["verdict"] == "needs_review"
+    diagnostic = result["evidence_reviewer"]["parameter_sensitivity_diagnostics"]["momentum:10"]
+    assert diagnostic["edge_collapses_in_nearby_variant"] is True
+    assert diagnostic["nearby_candidates"][0]["candidate"] == "momentum:12"
+    assert result["evidence_reviewer"]["parameter_sensitivity_requires_review"] == ["momentum:10"]
+
+
+def test_parameter_sensitivity_ignores_distant_or_different_family_candidates():
+    candidate = passing_candidate()
+    candidate.update({
+        "family": "momentum",
+        "lookback": 10,
+        "observations": 240,
+        "excess_return_vs_buy_and_hold_pct_points": 2.0,
+    })
+    distant = passing_candidate()
+    distant.update({
+        "family": "momentum",
+        "lookback": 30,
+        "observations": 240,
+        "excess_return_vs_buy_and_hold_pct_points": -5.0,
+    })
+    other_family = passing_candidate()
+    other_family.update({
+        "family": "sma",
+        "lookback": 11,
+        "observations": 240,
+        "excess_return_vs_buy_and_hold_pct_points": -5.0,
+    })
+    result = evaluate_independent_strategy_validation(
+        {"momentum:10": candidate, "momentum:30": distant, "sma:11": other_family},
+        {"usable": True, "status": "pass"},
+    )
+    diagnostic = result["evidence_reviewer"]["parameter_sensitivity_diagnostics"]["momentum:10"]
+    assert diagnostic["available"] is False
+    assert diagnostic["nearby_candidates"] == []
