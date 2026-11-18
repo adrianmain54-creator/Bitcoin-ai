@@ -47,7 +47,11 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
     )
     sufficient = count >= min_observations and elapsed_days >= min_days
     if count >= 2:
-        first_equity, last_equity = parsed[0][2], parsed[-1][2]
+        first_equity = observations[0].get("baseline_equity", parsed[0][2])
+        if (isinstance(first_equity, bool) or not isinstance(first_equity, (int, float))
+                or not math.isfinite(first_equity) or first_equity <= 0):
+            raise ValueError("first observation baseline_equity must be finite and positive")
+        last_equity = parsed[-1][2]
         strategy_return = (last_equity / first_equity - 1.0) * 100.0
         benchmark_return = (parsed[-1][1] / parsed[0][1] - 1.0) * 100.0
         peak = parsed[0][2]
