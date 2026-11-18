@@ -548,7 +548,33 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         key = f"{family}:{lookback}"
         candidate_returns = comparison_returns[(family, lookback)]
         candidate_equity = math.prod(1.0 + value for value in candidate_returns)
+        # Attribute each fixed candidate on the same held-out regime labels
+        # and intervals as buy-and-hold. These are descriptive slices only.
+        candidate_regimes = {}
+        candidate_stress_returns = comparison_stress_returns[(family, lookback)]
+        for label in regime_counts:
+            indices = [i for i, regime in enumerate(oos_regimes) if regime == label]
+            strategy_slice = [candidate_returns[i] for i in indices]
+            benchmark_slice = [benchmark[i] for i in indices]
+            stress_slice = [candidate_stress_returns[i] for i in indices]
+            strategy_equity = math.prod(1.0 + value for value in strategy_slice)
+            benchmark_regime_equity = math.prod(1.0 + value for value in benchmark_slice)
+            candidate_regimes[label] = {
+                "observations": len(indices),
+                "strategy_return_pct": round((strategy_equity - 1.0) * 100.0, 4),
+                "buy_and_hold_return_pct": round((benchmark_regime_equity - 1.0) * 100.0, 4),
+                "excess_return_vs_buy_and_hold_pct_points": round(
+                    (strategy_equity - benchmark_regime_equity) * 100.0, 4
+                ),
+                "strategy_return_at_2x_cost_pct": round(
+                    (math.prod(1.0 + value for value in stress_slice) - 1.0) * 100.0, 4
+                ),
+                "positive_bar_share_pct": round(
+                    100.0 * sum(value > 0 for value in strategy_slice) / len(strategy_slice), 4
+                ) if strategy_slice else None,
+            }
         fixed_candidate_comparison[key] = {
+            "regime_attribution": candidate_regimes,
             "family": family,
             "lookback": lookback,
             "observations": len(candidate_returns),
