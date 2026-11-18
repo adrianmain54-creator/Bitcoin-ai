@@ -140,3 +140,9 @@ The `bitcoin_ai.market_regime_intelligence.classify_market_conditions` helper co
 ### Regime robustness audit
 
 The research lab now emits `regime_robustness_audit` for every fixed candidate. It screens regime-conditioned OOS slices for underpowered samples and negative returns after doubled estimated costs, while retaining same-interval buy-and-hold comparisons. Underpowered regimes are explicitly unknown, not passes. The default 10-observation screen is a diagnostic heuristic, not a statistical sufficiency guarantee. The audit is report-only and has no promotion or execution effect; correlated observations, repeated testing, and unseen regimes remain limitations.
+
+
+
+### Strategy failure analysis
+
+Each fixed candidate's out-of-sample return stream now receives a chronological failure report: drawdown episodes and recovery status, worst individual loss bars, worst-5%-bar average, loss concentration, and regime-conditioned loss contribution. The report includes timestamps and doubled-cost return context. It is diagnostic only: it describes where losses cluster, does not prove why they happened, and cannot promote a strategy or authorize execution. Underpowered regime slices are marked unknown.

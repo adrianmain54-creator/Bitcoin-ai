@@ -19,6 +19,7 @@ from .data_quality import audit_price_bars
 from .agents import run_agent_council
 from .regime import classify_regime
 from .regime_robustness import audit_regime_robustness
+from .strategy_failure_analysis import analyze_strategy_failures
 from .promotion import (
     evaluate_paper_trial_eligibility,
     evaluate_strategy_abstention,
@@ -452,6 +453,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     cost = (fee_bps + slippage_bps) / 10000
     cursor, folds, oos, benchmark, stress_oos = train_bars, [], [], [], []
     oos_regimes = []
+    oos_timestamps = []
     oos_positions, oos_turnovers, oos_market_returns = [], [], []
     oos_entries, oos_exits = [], []
     family_attribution = {}
@@ -594,6 +596,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         stress_oos.extend(stress_returns)
         benchmark.extend(market_returns)
         oos_regimes.extend(fold_regimes)
+        oos_timestamps.extend(bars[i + 1].timestamp.isoformat() for i in range(test_start, test_end))
         oos_positions.extend(diagnostics["positions"])
         oos_turnovers.extend(diagnostics["turnovers"])
         oos_market_returns.extend(market_returns)
@@ -739,6 +742,16 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 periods_per_year,
             ),
         }
+    strategy_failure_reports = {}
+    for family, lookback in normalized:
+        key = f"{family}:{lookback}"
+        strategy_failure_reports[key] = analyze_strategy_failures(
+            comparison_returns[(family, lookback)],
+            stress_returns=comparison_stress_returns[(family, lookback)],
+            regimes=oos_regimes,
+            timestamps=oos_timestamps,
+        )
+
     # Holdout identity was fingerprinted before any test-window evaluation.
     from .holdout_audit import audit_holdout_reuse
 
@@ -813,6 +826,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "data_quality_audit": data_quality_report,
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
         "regime_robustness_audit": audit_regime_robustness(fixed_candidate_comparison),
+        "strategy_failure_analysis": strategy_failure_reports,
         "fixed_candidate_oos_comparison": {
             "candidates": fixed_candidate_comparison,
             "observations_per_candidate": len(benchmark),
