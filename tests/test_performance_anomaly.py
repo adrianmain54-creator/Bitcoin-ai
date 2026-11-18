@@ -70,3 +70,15 @@ def test_withholds_anomaly_verdict_when_observation_cadence_has_a_gap():
 def test_rejects_invalid_cadence_gap_multiple():
     with pytest.raises(ValueError, match="greater than 1"):
         evaluate_performance_anomalies([], max_gap_multiple=1)
+
+
+def test_anomaly_monitor_detects_gap_with_only_two_intervals():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    data = [
+        {"observed_at": (start + timedelta(minutes=minute)).isoformat(),
+         "price": 100.0 + index, "equity": 1000.0 + index}
+        for index, minute in enumerate((0, 1, 11))
+    ]
+    report = evaluate_performance_anomalies(data)
+    assert report["status"] == "unreliable_cadence"
+    assert len(report["cadence_gaps"]) == 1
