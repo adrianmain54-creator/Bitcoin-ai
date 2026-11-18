@@ -32,9 +32,12 @@ def test_first_cycle_initializes_then_persists_state(tmp_path):
     assert service.client.cross_check_calls == 1
     assert path.exists()
     before = json.loads(path.read_text())
-    service.run_once()
+    duplicate = service.run_once()
     after = json.loads(path.read_text())
     assert before["version"] == after["version"] == 1
+    assert duplicate["status"] == "duplicate_or_stale_observation"
+    assert len(after["account"]["paper_observations"]) == 1
+    assert report["forward_evidence"]["status"] == "insufficient_evidence"
 
 
 def test_corrupt_state_is_not_silently_reset(tmp_path):
