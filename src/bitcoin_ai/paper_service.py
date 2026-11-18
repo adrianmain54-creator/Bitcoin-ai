@@ -38,12 +38,13 @@ class PaperService:
 
     def run_once(self) -> dict:
         now = self.clock()
-        # A paper cycle requires two independent exchanges to agree. If either
-        # feed is unavailable or timestamps/prices disagree, fail closed: no
-        # simulated trade and no account-state mutation.
-        closes, observed_at = self.client.cross_checked_completed_closes(
+        # A paper cycle requires three independent venues to agree. If any
+        # source is unavailable, stale, misaligned, or divergent, fail closed
+        # before loading or mutating account state.
+        market_report = self.client.cross_checked_three_source_candle_history(
             interval=self.interval, limit=100, now=now
         )
+        closes, observed_at = market_report["closes"], market_report["latest"]
         try:
             account, risk = self.store.load()
         except StateStoreError as exc:
