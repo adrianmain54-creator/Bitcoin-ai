@@ -34,7 +34,10 @@ class PaperService:
 
     def run_once(self) -> dict:
         now = self.clock()
-        closes, observed_at = self.client.completed_closes(
+        # A paper cycle requires two independent exchanges to agree. If either
+        # feed is unavailable or timestamps/prices disagree, fail closed: no
+        # simulated trade and no account-state mutation.
+        closes, observed_at = self.client.cross_checked_completed_closes(
             interval=self.interval, limit=100, now=now
         )
         try:
