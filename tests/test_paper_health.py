@@ -88,3 +88,35 @@ def test_health_monitor_rejects_naive_clock_and_invalid_age(tmp_path):
         assert "finite positive" in str(exc)
     else:
         raise AssertionError("zero max age must be rejected")
+
+
+def test_strategy_degradation_requires_review_in_health_report(tmp_path):
+    from bitcoin_ai.forward_validation import observation_digest
+    path = tmp_path / "paper.json"
+    start = NOW - timedelta(minutes=36)
+    observations = []
+    equity = 1000.0
+    for index in range(36):
+        if index:
+            equity *= 1.01 if index <= 30 else 0.98
+        item = {
+            "observed_at": (start + timedelta(minutes=index)).isoformat(),
+            "price": 100.0,
+            "equity": equity,
+            "baseline_equity": 1000.0,
+            "signal": "hold",
+            "risk_allowed": True,
+            "risk_halted": False,
+            "trade_count": 0,
+            "previous_hash": observations[-1]["observation_hash"] if observations else GENESIS_HASH,
+        }
+        item["observation_hash"] = observation_digest(item)
+        observations.append(item)
+    account = PaperAccount(paper_observations=observations)
+    risk = new_risk_state(1000.0, NOW)
+    PaperStateStore(path).save(account, risk)
+    report = build_paper_health_report(path, now=NOW, max_age_seconds=3600)
+    assert report["performance_anomalies"]["status"] == "anomaly_detected"
+    assert report["status"] == "review_required"
+    assert report["alert"] == "strategy_performance_degradation"
+    assert report["healthy"] is False
