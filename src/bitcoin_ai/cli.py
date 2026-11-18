@@ -79,6 +79,8 @@ def main() -> None:
     lab_parser.add_argument("--bootstrap-trials", type=int, default=500)
     lab_parser.add_argument("--seed", type=int, default=7)
     lab_parser.add_argument("--experiment-ledger", type=Path, help="Optional durable append-only holdout ledger JSON path (single writer)")
+    lab_parser.add_argument("--candidate-ledger", type=Path, help="Durable pre-registered candidate trial ledger JSON path (single writer)")
+    lab_parser.add_argument("--code-revision", help="Exact source-control revision used for this research run; required with --candidate-ledger")
     lab_parser.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
@@ -169,6 +171,8 @@ def main() -> None:
                 periods_per_year=args.periods_per_year,
                 bootstrap_trials=args.bootstrap_trials, seed=args.seed,
                 previous_holdout_experiments=prior_ledger,
+                candidate_registry_path=args.candidate_ledger,
+                code_revision=args.code_revision,
             )
             if args.experiment_ledger is not None:
                 persistent_audit = audit_and_append_holdout_records(
