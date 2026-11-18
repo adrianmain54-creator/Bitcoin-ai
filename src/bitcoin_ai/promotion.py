@@ -142,6 +142,7 @@ def evaluate_strategy_abstention(candidates, *, min_observations=180,
 
 def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                                             holdout_reuse_audit=None,
+                                            candidate_family_audit=None,
                                             min_observations=180,
                                             min_probability_positive_pct=95.0):
     """Run deterministic proposer, skeptic, and evidence-review roles.
@@ -169,6 +170,64 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
 
     # Proposer: enumerate the fixed candidates already defined before OOS scoring.
     proposed = sorted(candidates)
+    registry_verified = None
+    registry_errors = []
+    if candidate_family_audit is not None:
+        if not isinstance(candidate_family_audit, dict):
+            registry_errors.append("candidate registry audit is malformed")
+        else:
+            registered_trials = candidate_family_audit.get("registered_trials")
+            registered_names = (
+                [item.get("candidate_name") for item in registered_trials]
+                if isinstance(registered_trials, list)
+                   and all(isinstance(item, dict) for item in registered_trials)
+                else []
+            )
+            registry_outcomes_match = isinstance(registered_trials, list)
+            if not registry_outcomes_match or len(registered_trials) != len(proposed):
+                registry_outcomes_match = False
+            else:
+                for item in registered_trials:
+                    name = item.get("candidate_name")
+                    recorded = item.get("outcome")
+                    if not isinstance(name, str):
+                        registry_outcomes_match = False
+                        break
+                    candidate = candidates.get(name)
+                    uncertainty = (
+                        candidate.get("paired_edge_uncertainty")
+                        if isinstance(candidate, dict) else None
+                    )
+                    if not isinstance(recorded, dict) or not isinstance(uncertainty, dict):
+                        registry_outcomes_match = False
+                        break
+                    recorded_p = recorded.get("bootstrap_null_p_value")
+                    current_p = uncertainty.get("bootstrap_null_p_value")
+                    if (
+                        not isinstance(recorded_p, (int, float))
+                        or isinstance(recorded_p, bool)
+                        or not isinstance(current_p, (int, float))
+                        or isinstance(current_p, bool)
+                        or not math.isfinite(recorded_p)
+                        or not math.isfinite(current_p)
+                        or not math.isclose(recorded_p, current_p, rel_tol=0.0, abs_tol=1e-12)
+                        or recorded.get("observations") != uncertainty.get("observations")
+                    ):
+                        registry_outcomes_match = False
+                        break
+            registry_verified = (
+                candidate_family_audit.get("status") == "complete"
+                and candidate_family_audit.get("candidate_count") == len(proposed)
+                and len(registered_names) == len(proposed)
+                and all(isinstance(name, str) for name in registered_names)
+                and sorted(registered_names) == proposed
+                and not candidate_family_audit.get("incomplete_trials")
+                and registry_outcomes_match
+            )
+            if not registry_verified:
+                registry_errors.append(
+                    "candidate registry is incomplete, mismatched, or does not contain the exact recorded p-value evidence"
+                )
     if any(not isinstance(name, str) or not name.strip() for name in proposed):
         raise ValueError("candidate names must be non-empty strings")
     # Holm's step-down family-wise error procedure operates on explicit
@@ -233,6 +292,7 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         evidence_errors.append("one or more proposed candidates lack skeptic review")
     if not proposed:
         evidence_errors.append("no fixed candidates were proposed")
+    evidence_errors.extend(registry_errors)
     if holdout_reuse_audit is not None and not holdout_fresh:
         if holdout_status == "reuse_detected":
             evidence_errors.append("held-out intervals overlap prior or same-run experiments")
@@ -378,6 +438,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "data_quality_usable": audit_usable,
             "holdout_reuse_status": holdout_status,
             "holdout_freshness_verified": holdout_fresh,
+            "candidate_registry_verified": registry_verified,
+            "candidate_registry_audit": candidate_family_audit,
             "errors": evidence_errors,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),

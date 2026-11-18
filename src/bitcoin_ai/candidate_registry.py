@@ -95,12 +95,54 @@ def load_candidate_registry(path: str | Path) -> dict[str, Any]:
         if kind == "registered":
             if trial_id in seen_trials:
                 raise CandidateRegistryError("duplicate candidate trial registration")
+            definition = event.get("definition")
+            if not isinstance(definition, dict):
+                raise CandidateRegistryError("candidate registration definition is malformed")
+            expected_definition_hash = hashlib.sha256(
+                _canonical(definition).encode("utf-8")
+            ).hexdigest()
+            if event.get("definition_hash") != expected_definition_hash:
+                raise CandidateRegistryError("candidate definition fingerprint mismatch")
+            try:
+                _timestamp(event.get("registered_at"), "registered_at")
+                test_start = datetime.fromisoformat(
+                    _timestamp(definition.get("test_start"), "test_start")
+                )
+                test_end = datetime.fromisoformat(
+                    _timestamp(definition.get("test_end"), "test_end")
+                )
+            except (TypeError, ValueError) as exc:
+                raise CandidateRegistryError("candidate registration timestamps are invalid") from exc
+            if test_start >= test_end:
+                raise CandidateRegistryError("candidate holdout window is invalid")
+            _sha256(definition.get("dataset_fingerprint"), "dataset_fingerprint")
+            if not isinstance(definition.get("candidate_name"), str) or not definition["candidate_name"].strip():
+                raise CandidateRegistryError("candidate name is invalid")
+            if not isinstance(definition.get("strategy_definition"), dict):
+                raise CandidateRegistryError("strategy definition is invalid")
+            if not isinstance(definition.get("code_revision"), str) or not definition["code_revision"].strip():
+                raise CandidateRegistryError("code revision is invalid")
             seen_trials[trial_id] = event.get("definition_hash")
         elif kind == "completed":
             if trial_id not in seen_trials or trial_id in completed:
                 raise CandidateRegistryError("orphan or duplicate candidate completion")
             if event.get("definition_hash") != seen_trials[trial_id]:
                 raise CandidateRegistryError("candidate definition changed after registration")
+            if not isinstance(event.get("outcome"), dict) or not event["outcome"]:
+                raise CandidateRegistryError("candidate completion outcome is malformed")
+            registration_event = next(
+                prior["event"] for prior in events[:index]
+                if prior["event"].get("type") == "registered"
+                and prior["event"].get("trial_id") == trial_id
+            )
+            completed_at = datetime.fromisoformat(
+                _timestamp(event.get("completed_at"), "completed_at")
+            )
+            registered_at = datetime.fromisoformat(
+                _timestamp(registration_event.get("registered_at"), "registered_at")
+            )
+            if completed_at < registered_at:
+                raise CandidateRegistryError("candidate completion predates registration")
             completed.add(trial_id)
         else:
             raise CandidateRegistryError(f"unknown candidate registry event type at index {index}")
@@ -207,6 +249,9 @@ def complete_candidate_trial(
     if trial_id in done:
         raise CandidateRegistryError("candidate trial is already completed")
     registration = registrations[trial_id]
+    registered_at = datetime.fromisoformat(registration["registered_at"])
+    if datetime.fromisoformat(completed) < registered_at:
+        raise CandidateRegistryError("candidate completion cannot predate its registration")
     return _append(path, {
         "type": "completed",
         "trial_id": trial_id,
@@ -226,8 +271,8 @@ def audit_candidate_family(
         raise CandidateRegistryError("test_start must precede test_end")
     data = load_candidate_registry(path)
     completions = {
-        e["event"]["trial_id"] for e in data["events"]
-        if e["event"]["type"] == "completed"
+        e["event"]["trial_id"]: e["event"]
+        for e in data["events"] if e["event"]["type"] == "completed"
     }
     matches = []
     for item in data["events"]:
@@ -248,6 +293,10 @@ def audit_candidate_family(
                 "candidate_name": definition["candidate_name"],
                 "definition_hash": event["definition_hash"],
                 "completed": event["trial_id"] in completions,
+                "outcome": (
+                    completions[event["trial_id"]]["outcome"]
+                    if event["trial_id"] in completions else None
+                ),
             })
     return {
         "status": "complete" if matches and all(item["completed"] for item in matches) else "review_required",

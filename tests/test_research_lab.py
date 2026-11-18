@@ -629,3 +629,74 @@ def test_research_lab_flags_reused_oos_windows_from_supplied_ledger():
     assert audit["status"] == "reuse_detected"
     assert audit["eligible_for_fresh_holdout_review"] is False
     assert all(item["status"] == "reuse_detected" for item in audit["fold_audits"])
+
+
+def test_candidate_registry_is_written_before_run_and_verified_after_completion(tmp_path):
+    ledger = tmp_path / "candidate-trials.json"
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "sma", "lookback": 12},
+            {"family": "momentum", "lookback": 8},
+        ],
+        bootstrap_trials=100,
+        previous_holdout_experiments=[],
+        candidate_registry_path=ledger,
+        code_revision="test-revision-123",
+    )
+    audit = result["candidate_registry_audit"]
+    assert audit["status"] == "complete"
+    assert audit["candidate_count"] == 2
+    assert {item["candidate_name"] for item in audit["registered_trials"]} == {
+        "sma:12", "momentum:8",
+    }
+    assert all(item["completed"] for item in audit["registered_trials"])
+    reviewer = result["independent_validation"]["evidence_reviewer"]
+    assert reviewer["candidate_registry_verified"] is True
+
+
+def test_candidate_registry_is_required_for_integrated_paper_review(tmp_path):
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+        previous_holdout_experiments=[],
+    )
+    assert result["candidate_registry_audit"]["status"] == "not_supplied"
+    reviewer = result["independent_validation"]["evidence_reviewer"]
+    assert reviewer["candidate_registry_verified"] is False
+    assert any("candidate registry" in error for error in reviewer["errors"])
+
+
+def test_candidate_registry_requires_exact_code_revision(tmp_path):
+    with pytest.raises(BacktestError, match="code_revision is required"):
+        run_strategy_lab(
+            bars(), train_bars=100, test_bars=30,
+            candidates=[{"family": "cash", "lookback": 2}],
+            bootstrap_trials=100,
+            candidate_registry_path=tmp_path / "candidate-trials.json",
+        )
+
+
+def test_candidate_registry_must_match_recorded_bootstrap_p_values(tmp_path):
+    from bitcoin_ai.promotion import evaluate_independent_strategy_validation
+
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 12}],
+        bootstrap_trials=100,
+        previous_holdout_experiments=[],
+        candidate_registry_path=tmp_path / "candidate-trials.json",
+        code_revision="test-revision-123",
+    )
+    altered_audit = result["candidate_registry_audit"]
+    altered_audit["registered_trials"][0]["outcome"]["bootstrap_null_p_value"] = 0.99
+    validation = evaluate_independent_strategy_validation(
+        result["fixed_candidate_oos_comparison"]["candidates"],
+        result["data_quality_audit"],
+        holdout_reuse_audit=result["holdout_reuse_audit"],
+        candidate_family_audit=altered_audit,
+    )
+    reviewer = validation["evidence_reviewer"]
+    assert reviewer["candidate_registry_verified"] is False
+    assert any("recorded p-value evidence" in error for error in reviewer["errors"])
