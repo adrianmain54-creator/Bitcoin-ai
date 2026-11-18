@@ -78,6 +78,7 @@ def main() -> None:
     lab_parser.add_argument("--periods-per-year", type=float, default=365.0)
     lab_parser.add_argument("--bootstrap-trials", type=int, default=500)
     lab_parser.add_argument("--seed", type=int, default=7)
+    lab_parser.add_argument("--experiment-ledger", type=Path, help="Optional durable append-only holdout ledger JSON path (single writer)")
     lab_parser.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
