@@ -13,7 +13,7 @@ from statistics import mean, pstdev
 from .backtesting import BacktestError, Bar, _metrics
 from .agents import run_agent_council
 from .regime import classify_regime
-from .promotion import evaluate_paper_trial_eligibility
+from .promotion import evaluate_paper_trial_eligibility, evaluate_strategy_abstention_gate
 
 
 def _equity_curve(returns):
@@ -687,5 +687,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
         ],
     }
+    report["strategy_abstention_gate"] = evaluate_strategy_abstention_gate(
+        fixed_candidate_comparison, min_observations=180,
+    )
     report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
     return report
