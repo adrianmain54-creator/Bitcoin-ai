@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import math
 from statistics import median
+from datetime import datetime
 
 
 def evaluate_performance_anomalies(observations, *, baseline_window=30,
                                   recent_window=5, min_baseline=20,
-                                  mad_threshold=3.0):
+                                  mad_threshold=3.0, max_gap_multiple=3.0):
     """Compare recent paired strategy-vs-market returns with prior observations.
 
     This is a monitoring heuristic, not a forecast, statistical significance test,
@@ -23,6 +24,10 @@ def evaluate_performance_anomalies(observations, *, baseline_window=30,
     if (isinstance(mad_threshold, bool) or not isinstance(mad_threshold, (int, float))
             or not math.isfinite(mad_threshold) or mad_threshold <= 0):
         raise ValueError("mad_threshold must be finite and positive")
+    if (isinstance(max_gap_multiple, bool)
+            or not isinstance(max_gap_multiple, (int, float))
+            or not math.isfinite(max_gap_multiple) or max_gap_multiple <= 1):
+        raise ValueError("max_gap_multiple must be finite and greater than 1")
     if not isinstance(observations, list):
         raise ValueError("observations must be a list")
 
@@ -33,7 +38,6 @@ def evaluate_performance_anomalies(observations, *, baseline_window=30,
         if not isinstance(item, dict):
             raise ValueError(f"observation {index} must be an object")
         stamp = item.get("observed_at")
-        from datetime import datetime
         try:
             current_time = datetime.fromisoformat(stamp)
         except (TypeError, ValueError) as exc:
@@ -56,6 +60,30 @@ def evaluate_performance_anomalies(observations, *, baseline_window=30,
             paired_edges.append(strategy_return - market_return)
         previous_time = current_time
         previous_equity, previous_price = equity, price
+
+    intervals = [
+        (datetime.fromisoformat(observations[index]["observed_at"])
+         - datetime.fromisoformat(observations[index - 1]["observed_at"])).total_seconds()
+        for index in range(1, len(observations))
+    ]
+    if len(intervals) >= 2:
+        typical_interval = median(intervals)
+        cadence_gaps = [
+            {"after_observation": index, "gap_seconds": round(seconds, 3)}
+            for index, seconds in enumerate(intervals)
+            if seconds > max_gap_multiple * typical_interval
+        ]
+        if cadence_gaps:
+            return {
+                "status": "unreliable_cadence",
+                "observations": len(paired_edges),
+                "required_observations": baseline_window + recent_window,
+                "median_interval_seconds": round(typical_interval, 3),
+                "max_gap_multiple": float(max_gap_multiple),
+                "cadence_gaps": cadence_gaps,
+                "anomalies": [],
+                "interpretation": "Performance comparison withheld because observation gaps make adjacent returns non-comparable.",
+            }
 
     required = baseline_window + recent_window
     if len(paired_edges) < required:
