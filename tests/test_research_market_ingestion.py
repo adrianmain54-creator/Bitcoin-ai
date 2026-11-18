@@ -106,6 +106,24 @@ def test_coinbase_unexpected_order_is_rejected_not_sorted():
         client_for(payloads).fetch_and_prepare(interval="5m", limit=25, now=NOW)
 
 
+def test_stale_latest_completed_history_is_rejected():
+    payloads = list(venue_payloads())
+    payloads[0] = [
+        [row[0] - 3_600_000, *row[1:6], row[6] - 3_600_000]
+        for row in payloads[0]
+    ]
+    payloads[1] = {
+        "error": [],
+        "result": {
+            "XXBTZUSDT": [[row[0] - 3600, *row[1:]] for row in payloads[1]["result"]["XXBTZUSDT"]],
+            "last": 1,
+        },
+    }
+    payloads[2] = [[row[0] - 3600, *row[1:]] for row in payloads[2]]
+    with pytest.raises(ResearchMarketFetchError, match="latest completed candle is stale"):
+        client_for(payloads).fetch_and_prepare(interval="5m", limit=25, now=NOW)
+
+
 def test_provider_interval_intersection_is_required():
     client = client_for(venue_payloads())
     with pytest.raises(ValueError, match="supported by all three"):
