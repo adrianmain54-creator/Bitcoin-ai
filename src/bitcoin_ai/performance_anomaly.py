@@ -68,10 +68,13 @@ def evaluate_performance_anomalies(observations, *, baseline_window=30,
     ]
     if len(intervals) >= 2:
         typical_interval = median(intervals)
+        # A two-interval median is the midpoint, which can mask a single
+        # extreme gap. Use the shorter interval until more samples exist.
+        cadence_reference = min(intervals) if len(intervals) == 2 else typical_interval
         cadence_gaps = [
             {"after_observation": index, "gap_seconds": round(seconds, 3)}
             for index, seconds in enumerate(intervals)
-            if seconds > max_gap_multiple * typical_interval
+            if seconds > max_gap_multiple * cadence_reference
         ]
         if cadence_gaps:
             return {
