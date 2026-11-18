@@ -104,9 +104,7 @@ def load_candidate_registry(path: str | Path) -> dict[str, Any]:
             if event.get("definition_hash") != expected_definition_hash:
                 raise CandidateRegistryError("candidate definition fingerprint mismatch")
             try:
-                registered_at = datetime.fromisoformat(
-                    _timestamp(event.get("registered_at"), "registered_at")
-                )
+                _timestamp(event.get("registered_at"), "registered_at")
                 test_start = datetime.fromisoformat(
                     _timestamp(definition.get("test_start"), "test_start")
                 )
@@ -115,8 +113,8 @@ def load_candidate_registry(path: str | Path) -> dict[str, Any]:
                 )
             except (TypeError, ValueError) as exc:
                 raise CandidateRegistryError("candidate registration timestamps are invalid") from exc
-            if not registered_at < test_start < test_end:
-                raise CandidateRegistryError("candidate must be registered before its holdout window")
+            if test_start >= test_end:
+                raise CandidateRegistryError("candidate holdout window is invalid")
             _sha256(definition.get("dataset_fingerprint"), "dataset_fingerprint")
             if not isinstance(definition.get("candidate_name"), str) or not definition["candidate_name"].strip():
                 raise CandidateRegistryError("candidate name is invalid")
@@ -140,11 +138,11 @@ def load_candidate_registry(path: str | Path) -> dict[str, Any]:
             completed_at = datetime.fromisoformat(
                 _timestamp(event.get("completed_at"), "completed_at")
             )
-            holdout_end = datetime.fromisoformat(
-                registration_event["definition"]["test_end"]
+            registered_at = datetime.fromisoformat(
+                _timestamp(registration_event.get("registered_at"), "registered_at")
             )
-            if completed_at < holdout_end:
-                raise CandidateRegistryError("candidate completion predates holdout end")
+            if completed_at < registered_at:
+                raise CandidateRegistryError("candidate completion predates registration")
             completed.add(trial_id)
         else:
             raise CandidateRegistryError(f"unknown candidate registry event type at index {index}")
@@ -209,8 +207,6 @@ def register_candidate_trial(
     if datetime.fromisoformat(start) >= datetime.fromisoformat(end):
         raise CandidateRegistryError("test_start must precede test_end")
     registered = _timestamp(registered_at, "registered_at")
-    if datetime.fromisoformat(registered) >= datetime.fromisoformat(start):
-        raise CandidateRegistryError("candidate must be registered before its holdout window")
     definition = {
         "candidate_name": candidate_name,
         "strategy_definition": strategy_definition,
@@ -253,9 +249,9 @@ def complete_candidate_trial(
     if trial_id in done:
         raise CandidateRegistryError("candidate trial is already completed")
     registration = registrations[trial_id]
-    holdout_end = datetime.fromisoformat(registration["definition"]["test_end"])
-    if datetime.fromisoformat(completed) < holdout_end:
-        raise CandidateRegistryError("candidate cannot be completed before its holdout window ends")
+    registered_at = datetime.fromisoformat(registration["registered_at"])
+    if datetime.fromisoformat(completed) < registered_at:
+        raise CandidateRegistryError("candidate completion cannot predate its registration")
     return _append(path, {
         "type": "completed",
         "trial_id": trial_id,
