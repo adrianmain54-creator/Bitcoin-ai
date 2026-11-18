@@ -237,7 +237,11 @@ def audit_candidate_family(
         definition = event["definition"]
         if definition["dataset_fingerprint"] != fingerprint:
             continue
-        overlaps = definition["test_start"] <= end and start <= definition["test_end"]
+        registered_start = datetime.fromisoformat(definition["test_start"])
+        registered_end = datetime.fromisoformat(definition["test_end"])
+        requested_start = datetime.fromisoformat(start)
+        requested_end = datetime.fromisoformat(end)
+        overlaps = registered_start <= requested_end and requested_start <= registered_end
         if overlaps:
             matches.append({
                 "trial_id": event["trial_id"],
