@@ -43,7 +43,9 @@ bitcoin-ai paper-report --state ./paper-state.json --initial-cash 10000
 pytest
 ```
 
-The optional `--experiment-ledger` file is created at the path you specify. Keep it backed up and do not edit it manually: corruption or hash-chain changes cause the research command to stop rather than silently reset history. Use one research process at a time per ledger file; concurrent writers are not supported. Every run is recorded, including runs that reuse an exposed holdout. A clean overlap audit is not proof of independence or profitability.\n\n## Trading development sequence
+The optional `--experiment-ledger` file is created at the path you specify. Keep it backed up and do not edit it manually: corruption or hash-chain changes cause the research command to stop rather than silently reset history. Use one research process at a time per ledger file; concurrent writers are not supported. Every run is recorded, including runs that reuse an exposed holdout. A clean overlap audit is not proof of independence or profitability.
+
+## Trading development sequence
 
 1. Historical data collection with provenance and validation.
 2. Walk-forward evaluation with untouched holdout data and realistic costs.
