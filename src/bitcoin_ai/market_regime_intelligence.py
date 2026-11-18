@@ -5,8 +5,6 @@ produce trade instructions. Any integrity alert causes an abstain posture.
 """
 from __future__ import annotations
 
-import math
-
 from .backtesting import BacktestError
 from .regime import classify_regime
 
@@ -72,7 +70,6 @@ def classify_market_conditions(
     if anomaly_status == "alerts_found" and not alerts:
         raise MarketRegimeIntelligenceError("anomaly report status conflicts with its alerts")
 
-    volatility = price["realized_volatility_pct_per_bar"] / 100.0
     high_volatility = price["regime"] == "high_volatility"
     if price["regime"] == "high_volatility":
         trend = "uptrend" if price["momentum_pct"] >= price["trend_threshold_pct"] else (
