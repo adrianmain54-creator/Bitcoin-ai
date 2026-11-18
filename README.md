@@ -113,3 +113,8 @@ bitcoin-ai research-lab \
 ```
 
 Both ledgers should be backed up and used by one process at a time. A repeated overlapping run on the same dataset is deliberately counted as additional trials and will block fresh-holdout eligibility. The registry's local timestamp is not a trusted external clock; this cannot prove experiments outside the tool were not run. Omitting `--candidate-ledger` leaves the research report diagnostic-only and blocks candidate-registry verification for paper-review eligibility. The code revision must identify the exact source used for the run.
+
+
+### Cross-source market-data integrity
+
+The paper service requires both Binance and Kraken. The cross-check now compares the full overlapping tail of completed candles, not only the final price. Both histories must be fresh, contiguous, and aligned; at least 20 overlapping candles are required by default. A divergence beyond the configured tolerance in even one overlapping close blocks the paper cycle before account state is changed. The report exposes aligned-candle count and maximum/mean deviation. Agreement between two exchanges is a consistency check, not proof against coordinated manipulation, shared upstream errors, or incorrect market-wide prices.
