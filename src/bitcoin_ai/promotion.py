@@ -222,9 +222,79 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         if concentrated and name in passing:
             regime_concentration.append(name)
 
+    # Compare only already-declared fixed candidates from the same family.
+    # This is a diagnostic, never a parameter search or replacement selector.
+    parameter_diagnostics = {}
+    parameter_sensitivity = []
+    for name in proposed:
+        candidate = candidates.get(name)
+        if not isinstance(candidate, dict):
+            parameter_diagnostics[name] = {"available": False, "nearby_candidates": []}
+            continue
+        family = candidate.get("family")
+        lookback = candidate.get("lookback")
+        edge = candidate.get("excess_return_vs_buy_and_hold_pct_points")
+        observations = candidate.get("observations")
+        valid_identity = (
+            isinstance(family, str)
+            and isinstance(lookback, int) and not isinstance(lookback, bool)
+            and lookback > 0
+        )
+        if not valid_identity:
+            parameter_diagnostics[name] = {
+                "available": False,
+                "nearby_candidates": [],
+                "interpretation": "Candidate family/lookback metadata unavailable.",
+            }
+            continue
+        radius = max(1, math.ceil(lookback * 0.25))
+        nearby = []
+        for peer_name in proposed:
+            if peer_name == name:
+                continue
+            peer = candidates.get(peer_name)
+            if not isinstance(peer, dict) or peer.get("family") != family:
+                continue
+            peer_lookback = peer.get("lookback")
+            peer_edge = peer.get("excess_return_vs_buy_and_hold_pct_points")
+            peer_obs = peer.get("observations")
+            if (isinstance(peer_lookback, int) and not isinstance(peer_lookback, bool)
+                    and 0 < abs(peer_lookback - lookback) <= radius
+                    and isinstance(peer_obs, int) and not isinstance(peer_obs, bool)
+                    and peer_obs >= 30
+                    and isinstance(peer_edge, (int, float)) and not isinstance(peer_edge, bool)
+                    and math.isfinite(peer_edge)):
+                nearby.append({
+                    "candidate": peer_name,
+                    "lookback": peer_lookback,
+                    "excess_return_vs_buy_and_hold_pct_points": peer_edge,
+                })
+        supported = (
+            isinstance(observations, int) and not isinstance(observations, bool)
+            and observations >= 30
+            and isinstance(edge, (int, float)) and not isinstance(edge, bool)
+            and math.isfinite(edge)
+        )
+        collapses = supported and edge > 0 and any(
+            peer["excess_return_vs_buy_and_hold_pct_points"] <= 0 for peer in nearby
+        )
+        parameter_diagnostics[name] = {
+            "available": bool(nearby),
+            "nearby_candidates": nearby,
+            "comparison_radius_lookback_bars": radius,
+            "edge_collapses_in_nearby_variant": bool(collapses),
+            "interpretation": (
+                "Positive edge disappears in a nearby fixed parameter variant; require human review."
+                if collapses else
+                "No collapse detected among supplied nearby variants; this is not proof of parameter robustness."
+            ),
+        }
+        if collapses and name in passing:
+            parameter_sensitivity.append(name)
+
     if evidence_errors or not passing:
         verdict = "reject"
-    elif audit_status != "pass" or regime_concentration:
+    elif audit_status != "pass" or regime_concentration or parameter_sensitivity:
         verdict = "needs_review"
     else:
         verdict = "eligible_for_paper_review"
@@ -248,6 +318,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "proposed_candidate_count": len(proposed),
             "regime_diagnostics": regime_diagnostics,
             "regime_concentration_requires_review": regime_concentration,
+            "parameter_sensitivity_diagnostics": parameter_diagnostics,
+            "parameter_sensitivity_requires_review": parameter_sensitivity,
         },
         "scope": (
             "Deterministic independent-role review only. Eligibility means a human "
