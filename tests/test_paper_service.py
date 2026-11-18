@@ -80,3 +80,22 @@ def test_forward_observations_survive_service_restart(tmp_path):
     assert report["forward_evidence"]["observations"] == 2
 
 
+
+
+def test_tampered_forward_history_stops_next_paper_cycle(tmp_path):
+    path = tmp_path / "paper.json"
+    first = PaperService(state_path=str(path), client=FakeClient(),
+                         clock=lambda: NOW)
+    first.run_once()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["account"]["paper_observations"][0]["equity"] += 50
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    later = NOW.replace(minute=11)
+    second = PaperService(
+        state_path=str(path),
+        client=FakeClient(observed_at=later),
+        clock=lambda: later,
+    )
+    with pytest.raises(ValueError, match="hash verification failed"):
+        second.run_once()
