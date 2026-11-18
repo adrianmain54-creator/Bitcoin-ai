@@ -20,6 +20,7 @@ from .agents import run_agent_council
 from .regime import classify_regime
 from .regime_robustness import audit_regime_robustness
 from .strategy_failure_analysis import analyze_strategy_failures
+from .strategy_improvement import propose_strategy_improvements
 from .promotion import (
     evaluate_paper_trial_eligibility,
     evaluate_strategy_abstention,
@@ -752,6 +753,11 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             timestamps=oos_timestamps,
         )
 
+    strategy_improvement_proposals = {
+        name: propose_strategy_improvements(name, report)
+        for name, report in strategy_failure_reports.items()
+    }
+
     # Holdout identity was fingerprinted before any test-window evaluation.
     from .holdout_audit import audit_holdout_reuse
 
@@ -827,6 +833,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
         "regime_robustness_audit": audit_regime_robustness(fixed_candidate_comparison),
         "strategy_failure_analysis": strategy_failure_reports,
+        "strategy_improvement_proposals": strategy_improvement_proposals,
         "fixed_candidate_oos_comparison": {
             "candidates": fixed_candidate_comparison,
             "observations_per_candidate": len(benchmark),
