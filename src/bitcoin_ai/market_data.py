@@ -135,3 +135,53 @@ class BinanceCandleClient:
                     f"BTC market data unavailable from Binance and Kraken "
                     f"(Binance: {binance_error}; Kraken: {kraken_error})"
                 ) from kraken_error
+
+    def cross_checked_completed_closes(
+        self, *, interval: str = "5m", limit: int = 100,
+        now: datetime | None = None, max_price_deviation: float = 0.01,
+    ) -> tuple[list[float], datetime]:
+        """Return Binance closes only when a fresh, aligned Kraken feed agrees.
+
+        Unlike completed_closes(), this method requires both exchanges. It fails
+        closed if either source is unavailable, candle timestamps do not align,
+        or the latest close prices differ beyond max_price_deviation.
+        """
+        if interval not in self.INTERVAL_MINUTES:
+            raise ValueError("unsupported candle interval")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 2 <= limit <= 1000:
+            raise ValueError("limit must be an integer from 2 to 1000")
+        if (isinstance(max_price_deviation, bool)
+                or not isinstance(max_price_deviation, (int, float))
+                or not math.isfinite(max_price_deviation)
+                or not 0 < max_price_deviation < 1):
+            raise ValueError("max_price_deviation must be a finite fraction between 0 and 1")
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None or current.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+
+        max_age = 2 * self.INTERVAL_MINUTES[interval] * 60
+        try:
+            binance_closes, binance_latest = self._binance(interval, limit, current)
+        except (MarketDataError, URLError, TimeoutError, OSError, ValueError, TypeError, KeyError) as exc:
+            raise MarketDataError(f"Cross-check requires Binance data: {exc}") from exc
+        try:
+            kraken_closes, kraken_latest = self._kraken(interval, limit, current)
+        except (MarketDataError, URLError, TimeoutError, OSError, ValueError, TypeError, KeyError) as exc:
+            raise MarketDataError(f"Cross-check requires Kraken data: {exc}") from exc
+
+        if (current - binance_latest).total_seconds() > max_age:
+            raise MarketDataError("Binance latest completed candle is stale")
+        if (current - kraken_latest).total_seconds() > max_age:
+            raise MarketDataError("Kraken latest completed candle is stale")
+        if abs((binance_latest - kraken_latest).total_seconds()) > 2:
+            raise MarketDataError("Binance and Kraken latest candle timestamps do not align")
+
+        binance_price, kraken_price = binance_closes[-1], kraken_closes[-1]
+        midpoint = (binance_price + kraken_price) / 2
+        deviation = abs(binance_price - kraken_price) / midpoint
+        if deviation > max_price_deviation:
+            raise MarketDataError(
+                f"Binance/Kraken price divergence {deviation:.4%} exceeds "
+                f"the allowed {max_price_deviation:.4%}"
+            )
+        return binance_closes, binance_latest
