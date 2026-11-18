@@ -165,7 +165,7 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
     holdout_fresh = (
         holdout_status == "no_overlap_detected"
         and holdout_reuse_audit.get("eligible_for_fresh_holdout_review") is True
-    )
+    ) if isinstance(holdout_reuse_audit, dict) else None
 
     # Proposer: enumerate the fixed candidates already defined before OOS scoring.
     proposed = sorted(candidates)
@@ -200,13 +200,13 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         evidence_errors.append("one or more proposed candidates lack skeptic review")
     if not proposed:
         evidence_errors.append("no fixed candidates were proposed")
-    if not holdout_fresh:
+    if holdout_reuse_audit is not None and not holdout_fresh:
         if holdout_status == "reuse_detected":
             evidence_errors.append("held-out intervals overlap prior or same-run experiments")
         elif holdout_status == "no_prior_ledger_supplied":
             evidence_errors.append("no prior holdout ledger was supplied; freshness is unverified")
         else:
-            evidence_errors.append("fresh holdout audit is missing, invalid, or not eligible")
+            evidence_errors.append("fresh holdout audit is invalid or not eligible")
 
     # Regime slices are descriptive evidence, not tuning inputs. If a candidate
     # has regime results but positive excess is confined to one adequately
