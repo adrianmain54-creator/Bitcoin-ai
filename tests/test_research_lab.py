@@ -452,3 +452,48 @@ def test_fixed_candidate_report_includes_deterministic_edge_uncertainty():
         assert uncertainty["observations"] == first["out_of_sample_returns"]
         assert uncertainty == second["fixed_candidate_oos_comparison"]["candidates"][key]["paired_edge_uncertainty"]
         assert 0.0 <= uncertainty["probability_positive_pct"] <= 100.0
+
+
+
+def test_strategy_abstention_gate_requires_all_evidence_checks():
+    from bitcoin_ai.promotion import evaluate_strategy_abstention_gate
+
+    candidate = {
+        "paired_edge_uncertainty": {
+            "observations": 200,
+            "excess_return_p05_pct": 1.2,
+            "probability_positive_pct": 97.0,
+        },
+        "metrics_at_2x_cost": {"total_return_pct": 2.0},
+    }
+    passed = evaluate_strategy_abstention_gate({"momentum:10": candidate})
+    assert passed["recommended_action"] == "paper-trial candidate review"
+    assert passed["clearing_candidates"] == ["momentum:10"]
+
+    weak_edge = {
+        **candidate,
+        "paired_edge_uncertainty": {
+            **candidate["paired_edge_uncertainty"],
+            "excess_return_p05_pct": -0.1,
+        },
+    }
+    assert evaluate_strategy_abstention_gate({"weak": weak_edge})["recommended_action"] == "cash/abstain"
+
+    cost_failure = {**candidate, "metrics_at_2x_cost": {"total_return_pct": -0.01}}
+    assert evaluate_strategy_abstention_gate({"costly": cost_failure})["recommended_action"] == "cash/abstain"
+
+    small_sample = {
+        **candidate,
+        "paired_edge_uncertainty": {**candidate["paired_edge_uncertainty"], "observations": 30},
+    }
+    assert evaluate_strategy_abstention_gate({"small": small_sample})["recommended_action"] == "cash/abstain"
+
+
+def test_strategy_abstention_gate_fails_closed_on_missing_or_invalid_evidence():
+    from bitcoin_ai.promotion import evaluate_strategy_abstention_gate
+
+    assert evaluate_strategy_abstention_gate({})["recommended_action"] == "cash/abstain"
+    result = evaluate_strategy_abstention_gate({"unknown": {}})
+    assert result["candidate_results"]["unknown"]["clears_gate"] is False
+    with pytest.raises(ValueError):
+        evaluate_strategy_abstention_gate({}, min_observations=0)
