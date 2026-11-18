@@ -12,6 +12,7 @@ from .market_data import BinanceCandleClient, MarketDataError
 from .paper_trading import PaperAccount
 from .risk import RiskLimits, new_risk_state
 from .state_store import PaperStateStore, StateStoreError
+from .forward_validation import evaluate_forward_paper_evidence
 
 
 class PaperService:
@@ -91,6 +92,7 @@ class PaperService:
             "risk_reason": result.risk.reason,
             "execution": result.execution,
             "equity": result.equity,
+            "forward_evidence": evaluate_forward_paper_evidence(account.paper_observations),
             "state_path": str(self.store.path),
         }
 
