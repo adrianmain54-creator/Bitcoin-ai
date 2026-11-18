@@ -61,3 +61,80 @@ def evaluate_paper_trial_eligibility(report, *, min_folds=6, min_oos_returns=180
         "scope": "eligibility for a separately monitored paper-forward trial only; never authorizes live trading",
         "minimums": {"folds": min_folds, "oos_returns": min_oos_returns, "max_drawdown_pct": max_drawdown_pct},
     }
+
+
+def evaluate_strategy_abstention(candidates, *, min_observations=180,
+                                 min_probability_positive_pct=95.0):
+    """Report-only conservative evidence gate for fixed candidates.
+
+    This is an OOS diagnostic, not a selector or execution instruction. A failed
+    gate means remain in cash; a pass only warrants human review and paper-forward
+    validation. No live or paper-service behavior is changed.
+    """
+    if not isinstance(candidates, dict):
+        raise ValueError("candidates must be a dictionary")
+    if isinstance(min_observations, bool) or not isinstance(min_observations, int) or min_observations < 1:
+        raise ValueError("min_observations must be an integer >= 1")
+    if (isinstance(min_probability_positive_pct, bool)
+            or not isinstance(min_probability_positive_pct, (int, float))
+            or not math.isfinite(min_probability_positive_pct)
+            or not 0.0 <= min_probability_positive_pct <= 100.0):
+        raise ValueError("min_probability_positive_pct must be between 0 and 100")
+
+    assessments = {}
+    for name, candidate in candidates.items():
+        reasons = []
+        if not isinstance(candidate, dict):
+            reasons.append("candidate evidence is missing or invalid")
+            candidate = {}
+        uncertainty = candidate.get("paired_edge_uncertainty")
+        stress = candidate.get("metrics_at_2x_cost")
+        if not isinstance(uncertainty, dict) or not isinstance(stress, dict):
+            reasons.append("paired uncertainty or 2x-cost evidence is missing")
+        else:
+            def metric(obj, key):
+                value = obj.get(key)
+                return (value if isinstance(value, (int, float))
+                        and not isinstance(value, bool) and math.isfinite(value)
+                        else None)
+            observations = uncertainty.get("observations")
+            if (isinstance(observations, bool) or not isinstance(observations, int)
+                    or observations < min_observations):
+                reasons.append(f"requires at least {min_observations} paired OOS observations")
+            p05 = metric(uncertainty, "excess_return_p05_pct")
+            observed = metric(uncertainty, "observed_excess_return_pct")
+            probability = metric(uncertainty, "probability_positive_pct")
+            stressed = metric(stress, "total_return_pct")
+            if None in (p05, observed, probability, stressed):
+                reasons.append("required edge, probability, or stress metrics are missing or invalid")
+            else:
+                if p05 <= 0:
+                    reasons.append("paired edge fifth percentile is not positive")
+                if observed <= 0:
+                    reasons.append("observed paired excess return is not positive")
+                if probability < min_probability_positive_pct:
+                    reasons.append(
+                        f"bootstrap positive-edge share is below {min_probability_positive_pct:g}%"
+                    )
+                if stressed <= 0:
+                    reasons.append("candidate return is not positive at 2x estimated costs")
+        assessments[name] = {"eligible_for_review": not reasons, "reasons": reasons}
+
+    passing = [name for name, item in assessments.items() if item["eligible_for_review"]]
+    return {
+        "action": "manual_review_required" if passing else "abstain_cash",
+        "passing_candidates": passing,
+        "candidate_assessments": assessments,
+        "thresholds": {
+            "minimum_paired_oos_observations": min_observations,
+            "minimum_bootstrap_positive_edge_pct": min_probability_positive_pct,
+            "paired_edge_p05_pct": "strictly greater than 0",
+            "observed_excess_return_pct": "strictly greater than 0",
+            "2x_cost_return_pct": "strictly greater than 0",
+        },
+        "scope": (
+            "Report-only historical evidence gate. A pass is not a strategy selection, "
+            "forecast, proof of edge, or authorization to trade; require independent "
+            "review and paper-forward validation. A fail means abstain to cash."
+        ),
+    }
