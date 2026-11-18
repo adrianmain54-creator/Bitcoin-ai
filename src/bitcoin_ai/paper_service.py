@@ -52,10 +52,33 @@ class PaperService:
             )
             risk = new_risk_state(account.equity(closes[-1]), now)
 
+        # The same completed candle may be returned by multiple polls.
+        # Never let duplicate observations create repeated decisions or inflate
+        # forward-evidence sample counts.
+        if account.paper_observations:
+            last_seen = datetime.fromisoformat(account.paper_observations[-1]["observed_at"])
+            if observed_at <= last_seen:
+                return {
+                    "mode": "paper",
+                    "status": "duplicate_or_stale_observation",
+                    "observed_at": observed_at.isoformat(),
+                    "state_path": str(self.store.path),
+                }
+
         result = run_paper_cycle(
             closes=closes, account=account, risk_state=risk,
             observed_at=observed_at, now=now, limits=self.limits,
         )
+        observation = {
+            "observed_at": observed_at.isoformat(),
+            "price": closes[-1],
+            "equity": result.equity,
+            "signal": result.signal.action,
+            "risk_allowed": result.risk.allowed,
+            "risk_halted": result.risk.halted,
+            "trade_count": len(account.trades),
+        }
+        account.paper_observations.append(observation)
         self.store.save(account, risk)
         return {
             "mode": "paper",
