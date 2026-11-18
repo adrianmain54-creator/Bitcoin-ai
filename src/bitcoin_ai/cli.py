@@ -204,6 +204,10 @@ def main() -> None:
         else:
             print(f"Paper trader health: {report['status']}")
             print(f"Alert: {report.get('alert') or 'none'}")
+            anomaly = report.get("performance_anomalies", {})
+            print(f"Performance anomaly check: {anomaly.get('status', 'unavailable')}")
+            for item in anomaly.get("anomalies", []):
+                print(f"Review: {item.get('message', 'Performance anomaly detected.')}")
             print(report["action"])
         return
 
