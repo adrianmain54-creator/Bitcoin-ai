@@ -94,7 +94,7 @@ complete_candidate_trial(
 )
 ```
 
-Use `audit_candidate_family` to count all registered trials on the same dataset with overlapping test windows, including incomplete trials. This first iteration is a standalone API: it is **not yet wired automatically into the research-lab Holm gate**, so do not treat its output as proof that all historical experiments were registered. It cannot detect trials run outside the registry or prove a registration timestamp against an external trusted clock. Back up the ledger and use one writer at a time; concurrent writers are not supported.
+Use `audit_candidate_family` to count all registered trials on the same dataset with overlapping test windows, including incomplete trials. The integrated research-lab workflow now pre-registers its fixed candidate family and requires the completed registry audit to match the candidate names, count, and recorded p-value evidence before paper-review eligibility can be considered. It cannot detect trials run outside the registry or prove a registration timestamp against an external trusted clock. Back up the ledger and use one writer at a time; concurrent writers are not supported.
 
 
 ### Integrated candidate-registry workflow
