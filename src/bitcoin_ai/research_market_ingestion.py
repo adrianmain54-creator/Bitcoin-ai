@@ -165,6 +165,7 @@ class PublicResearchMarketIngestor:
         if current.tzinfo is None or current.utcoffset() is None:
             raise ValueError("now must be timezone-aware")
         retrieved_at = current.astimezone(timezone.utc).isoformat()
+        candle_seconds = self._interval_seconds(interval)
         fetchers = (
             ("binance", self._binance),
             ("kraken", self._kraken),
@@ -177,6 +178,12 @@ class PublicResearchMarketIngestor:
                 raise ResearchMarketFetchError(
                     f"{source} returned only {len(bars)} completed candles; at least 20 required"
                 )
+            latest_open = datetime.fromisoformat(bars[-1]["timestamp"].replace("Z", "+00:00"))
+            latest_close = latest_open.timestamp() + candle_seconds
+            if latest_close > current.timestamp():
+                raise ResearchMarketFetchError(f"{source} returned an incomplete future candle")
+            if current.timestamp() - latest_close > 2 * candle_seconds:
+                raise ResearchMarketFetchError(f"{source} latest completed candle is stale")
             payloads.append({
                 "source": source, "symbol": "BTC-USDT", "interval": interval,
                 "retrieved_at": retrieved_at, "bars": bars,
