@@ -128,3 +128,9 @@ The paper service now requires aligned completed BTC-USDT candle histories from 
 ### OHLCV anomaly diagnostics
 
 The research-only `bitcoin_ai.market_anomaly.audit_ohlcv_anomalies` helper validates timestamp order and OHLCV relationships, then flags abnormal volume using a prior-only rolling median/MAD baseline, unusually wide candle ranges, and extreme close-to-close returns. The evaluated candle is excluded from its own baseline. These are heuristic diagnostics, not a spoofing or manipulation detector, and they are not currently wired into paper execution. Venue-reported volume can be incomplete or unreliable; alerts require human review and calibration before any strategy use.
+
+
+
+### Market-regime intelligence (research-only)
+
+The `bitcoin_ai.market_regime_intelligence.classify_market_conditions` helper combines the causal trailing-close regime classifier with the OHLCV anomaly report and the two-/three-source candle audit. It emits descriptive trend/volatility labels and a research-only posture. Any OHLCV alert changes the posture to `abstain`; an unsuccessful, divergent, or too-short exchange audit is rejected. It requires completed-candle inputs and never creates orders or forecasts. Thresholds remain heuristics, and a clean cross-check cannot prove market-wide data integrity.
