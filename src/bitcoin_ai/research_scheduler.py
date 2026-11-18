@@ -37,7 +37,7 @@ def _timestamp(value: str) -> datetime:
     except ValueError as exc:
         raise ResearchSchedulerError("observed_at is not a valid ISO timestamp") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ResearchSchedulerError("observed_at must include a timezone")
+        raise ResearchSchedulerError("observed_at must be timezone-aware and include an offset")
     return parsed
 
 
@@ -121,9 +121,15 @@ def scan_and_queue_research(
     if not isinstance(regime, str) or not regime.strip():
         raise ResearchSchedulerError("market context regime is missing")
     if (not isinstance(sources, list)
-            or any(not isinstance(source, str) or not source for source in sources)
-            or len(set(sources)) < 3):
-        raise ResearchSchedulerError("scheduler requires three unique verified exchange sources")
+            or any(not isinstance(source, str) or not source for source in sources)):
+        raise ResearchSchedulerError("exchange_sources must be a list of non-empty source names")
+    if len(set(sources)) < 3:
+        return {
+            "status": "abstained",
+            "reason": "fewer than three unique verified exchange sources",
+            "queued": [],
+            "queue_mutated": False,
+        }
     if isinstance(aligned, bool) or not isinstance(aligned, int) or aligned < 20:
         raise ResearchSchedulerError("scheduler requires at least 20 aligned market candles")
     alert_count = market_context.get("anomaly_alert_count")
