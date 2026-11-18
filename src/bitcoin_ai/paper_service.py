@@ -103,6 +103,7 @@ class PaperService:
             "mode": "paper",
             "observed_at": observed_at.isoformat(),
             "price": closes[-1],
+            "market_data_audit": market_report["audit"],
             "signal": result.signal.action,
             "requested_allocation": result.signal.target_allocation,
             "risk_allowed": result.risk.allowed,
