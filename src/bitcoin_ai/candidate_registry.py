@@ -130,6 +130,21 @@ def load_candidate_registry(path: str | Path) -> dict[str, Any]:
                 raise CandidateRegistryError("orphan or duplicate candidate completion")
             if event.get("definition_hash") != seen_trials[trial_id]:
                 raise CandidateRegistryError("candidate definition changed after registration")
+            if not isinstance(event.get("outcome"), dict) or not event["outcome"]:
+                raise CandidateRegistryError("candidate completion outcome is malformed")
+            registration_event = next(
+                prior["event"] for prior in events[:index]
+                if prior["event"].get("type") == "registered"
+                and prior["event"].get("trial_id") == trial_id
+            )
+            completed_at = datetime.fromisoformat(
+                _timestamp(event.get("completed_at"), "completed_at")
+            )
+            holdout_end = datetime.fromisoformat(
+                registration_event["definition"]["test_end"]
+            )
+            if completed_at < holdout_end:
+                raise CandidateRegistryError("candidate completion predates holdout end")
             completed.add(trial_id)
         else:
             raise CandidateRegistryError(f"unknown candidate registry event type at index {index}")
