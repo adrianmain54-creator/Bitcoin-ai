@@ -687,5 +687,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "Research results do not establish future profitability; paper trading remains the only execution mode.",
         ],
     }
-    report["strategy_abstention_gate"] = evaluate_strategy_abstention_gate(\n        fixed_candidate_comparison, min_observations=180,\n    )\n    report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
+    report["strategy_abstention_gate"] = evaluate_strategy_abstention_gate(
+        fixed_candidate_comparison, min_observations=180,
+    )
+    report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
     return report
