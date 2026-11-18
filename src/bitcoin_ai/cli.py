@@ -206,6 +206,13 @@ def main() -> None:
             print(f"Alert: {report.get('alert') or 'none'}")
             anomaly = report.get("performance_anomalies", {})
             print(f"Performance anomaly check: {anomaly.get('status', 'unavailable')}")
+            drawdown = report.get("drawdown", {})
+            if drawdown.get("status") == "available":
+                print(
+                    "Checkpoint drawdown: "
+                    f"current {drawdown['current_drawdown_pct']:.3f}% | "
+                    f"maximum observed {drawdown['max_observed_drawdown_pct']:.3f}%"
+                )
             for item in anomaly.get("anomalies", []):
                 print(f"Review: {item.get('message', 'Performance anomaly detected.')}")
             print(report["action"])
