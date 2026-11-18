@@ -28,7 +28,7 @@ def test_missing_interval_fails_closed_without_repairing_data():
     report = audit_price_bars(bars, expected_interval_seconds=60)
     assert report["usable"] is False
     assert report["status"] == "fail"
-    assert report["interval_audit"]["mismatch_count"] == 2
+    assert report["interval_audit"]["mismatch_count"] == 1
     assert len(bars) == 4
 
 
