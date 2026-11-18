@@ -540,3 +540,38 @@ def test_research_report_includes_report_only_abstention_gate():
     assert "momentum:8" in gate["candidate_assessments"]
     assert gate["candidate_assessments"]["cash:2"]["eligible_for_review"] is False
     assert "Report-only" in gate["scope"]
+
+
+def test_research_lab_embeds_data_quality_audit():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    assert result["data_quality_audit"]["usable"] is True
+    assert result["data_quality_audit"]["status"] == "pass"
+
+
+def test_research_lab_rejects_cadence_gaps_when_interval_is_declared():
+    data = bars()
+    data[120] = Bar(data[120].timestamp + timedelta(hours=1), data[120].close)
+    with pytest.raises(BacktestError, match="data quality audit failed"):
+        run_strategy_lab(
+            data, train_bars=100, test_bars=30,
+            candidates=[{"family": "cash", "lookback": 2}],
+            bootstrap_trials=100, expected_interval_seconds=86400,
+        )
+
+
+def test_research_lab_reports_anomaly_warnings_without_rewriting_prices():
+    data = bars()
+    original_close = data[120].close
+    data[120] = Bar(data[120].timestamp, original_close * 1.5)
+    result = run_strategy_lab(
+        data, train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    assert result["data_quality_audit"]["status"] == "review"
+    assert result["data_quality_audit"]["anomaly_audit"]["outlier_count"] >= 1
+    assert data[120].close == original_close * 1.5
