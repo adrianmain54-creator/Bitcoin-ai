@@ -113,7 +113,7 @@ def test_strategy_degradation_requires_review_in_health_report(tmp_path):
         item["observation_hash"] = observation_digest(item)
         observations.append(item)
     account = PaperAccount(paper_observations=observations)
-    risk = new_risk_state(1000.0, NOW)
+    risk = new_risk_state(max(item["equity"] for item in observations), NOW)
     PaperStateStore(path).save(account, risk)
     report = build_paper_health_report(path, now=NOW, max_age_seconds=3600)
     assert report["performance_anomalies"]["status"] == "anomaly_detected"
@@ -158,7 +158,7 @@ def test_health_report_includes_read_only_checkpoint_drawdown(tmp_path):
         item["observation_hash"] = observation_digest(item)
         observations.append(item)
     account = PaperAccount(paper_observations=observations)
-    risk = new_risk_state(1000.0, NOW)
+    risk = new_risk_state(1100.0, NOW)
     PaperStateStore(path).save(account, risk)
 
     report = build_paper_health_report(path, now=NOW, max_age_seconds=600)
@@ -175,3 +175,28 @@ def test_drawdown_summary_rejects_invalid_equity():
 
     with pytest.raises(ValueError, match="finite and positive"):
         summarize_drawdown([{"equity": float("nan")}])
+
+
+def test_health_flags_persisted_risk_peak_below_observed_equity(tmp_path):
+    path = tmp_path / "paper.json"
+    observations = []
+    for index, equity in enumerate((1000.0, 1100.0, 1050.0)):
+        item = {
+            "observed_at": (NOW - timedelta(minutes=2 - index)).isoformat(),
+            "price": 100.0,
+            "equity": equity,
+            "previous_hash": observations[-1]["observation_hash"] if observations else GENESIS_HASH,
+        }
+        item["observation_hash"] = observation_digest(item)
+        observations.append(item)
+    account = PaperAccount(paper_observations=observations)
+    risk = new_risk_state(1000.0, NOW)
+    PaperStateStore(path).save(account, risk)
+
+    report = build_paper_health_report(path, now=NOW, max_age_seconds=600)
+    assert report["risk_peak_integrity"]["status"] == "mismatch"
+    assert report["risk_peak_integrity"]["checkpoint_peak_equity"] == 1100.0
+    assert report["risk_peak_integrity"]["persisted_risk_peak_equity"] == 1000.0
+    assert report["status"] == "review_required"
+    assert report["alert"] == "risk_peak_checkpoint_mismatch"
+    assert "do not reset either value" in report["action"]

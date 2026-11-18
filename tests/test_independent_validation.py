@@ -151,6 +151,8 @@ def test_nearby_parameter_variant_erasing_edge_requires_review():
         "observations": 240,
         "excess_return_vs_buy_and_hold_pct_points": -0.4,
     })
+    strong["paired_edge_uncertainty"]["probability_positive_pct"] = 99.0
+    nearby["paired_edge_uncertainty"]["probability_positive_pct"] = 99.0
     result = evaluate_independent_strategy_validation(
         {"momentum:10": strong, "momentum:12": nearby},
         {"usable": True, "status": "pass"},
@@ -191,3 +193,38 @@ def test_parameter_sensitivity_ignores_distant_or_different_family_candidates():
     diagnostic = result["evidence_reviewer"]["parameter_sensitivity_diagnostics"]["momentum:10"]
     assert diagnostic["available"] is False
     assert diagnostic["nearby_candidates"] == []
+
+
+def test_candidate_multiplicity_tightens_positive_bootstrap_share_hurdle():
+    strong = passing_candidate()
+    strong["paired_edge_uncertainty"]["probability_positive_pct"] = 97.0
+    result = evaluate_independent_strategy_validation(
+        {"candidate-a": strong, "candidate-b": passing_candidate()},
+        {"usable": True, "status": "pass"},
+    )
+    guard = result["evidence_reviewer"]["multiplicity_guard"]
+    assert guard["candidate_count"] == 2
+    assert guard["effective_minimum_bootstrap_positive_edge_pct"] == pytest.approx(97.5)
+    assert guard["formal_multiple_testing_correction"] is False
+    assert result["skeptic"]["candidate_reviews"]["candidate-a"]["eligible_for_review"] is False
+    assert any(
+        "bootstrap positive-edge share is below 97.5%" in reason
+        for reason in result["skeptic"]["candidate_reviews"]["candidate-a"]["reasons"]
+    )
+
+
+def test_candidate_multiplicity_guard_does_not_call_bootstrap_share_a_p_value():
+    result = evaluate_independent_strategy_validation(
+        {"one": passing_candidate()},
+        {"usable": True, "status": "pass"},
+    )
+    guard = result["evidence_reviewer"]["multiplicity_guard"]
+    assert guard["effective_minimum_bootstrap_positive_edge_pct"] == 95.0
+    assert "not a p-value" in guard["warning"]
+
+
+def test_independent_validation_rejects_invalid_candidate_names():
+    with pytest.raises(ValueError, match="candidate names must be non-empty strings"):
+        evaluate_independent_strategy_validation(
+            {1: passing_candidate()}, {"usable": True, "status": "pass"}
+        )

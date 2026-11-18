@@ -49,20 +49,39 @@ def build_paper_health_report(state_path, *, now=None, max_age_seconds=180.0):
 
     last_at = datetime.fromisoformat(observations[-1]["observed_at"])
     age = max(0.0, (now - last_at).total_seconds())
+    drawdown = summarize_drawdown(observations)
+    checkpoint_peak = drawdown.get("peak_equity")
+    risk_peak = float(risk.peak_equity)
+    peak_mismatch = (
+        checkpoint_peak is not None
+        and risk_peak + 1e-9 * max(1.0, abs(checkpoint_peak)) < checkpoint_peak
+    )
     common = {
         "state_path": str(store.path), "observations": len(observations),
         "last_observed_at": last_at.isoformat(), "last_observation_age_seconds": round(age, 3),
         "max_age_seconds": float(max_age_seconds),
         "forward_evidence_status": evidence["status"],
         "risk_halted": risk.halted,
+        "risk_peak_equity": risk_peak,
+        "risk_peak_integrity": {
+            "status": "mismatch" if peak_mismatch else "consistent",
+            "checkpoint_peak_equity": checkpoint_peak,
+            "persisted_risk_peak_equity": risk_peak,
+        },
         "performance_anomalies": evaluate_performance_anomalies(observations),
-        "drawdown": summarize_drawdown(observations),
+        "drawdown": drawdown,
     }
     if risk.halted:
         return {
             **common, "status": "risk_halted", "healthy": False,
             "alert": "risk_halt_active",
             "action": "Keep the risk halt in place and require human review; monitoring never clears it.",
+        }
+    if peak_mismatch:
+        return {
+            **common, "status": "review_required", "healthy": False,
+            "alert": "risk_peak_checkpoint_mismatch",
+            "action": "Persisted risk peak equity is below an observed account-equity checkpoint. Stop paper execution and inspect the account/risk state pair; do not reset either value automatically.",
         }
     if age > max_age_seconds:
         return {

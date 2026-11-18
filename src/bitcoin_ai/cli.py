@@ -206,6 +206,8 @@ def main() -> None:
             print(f"Alert: {report.get('alert') or 'none'}")
             anomaly = report.get("performance_anomalies", {})
             print(f"Performance anomaly check: {anomaly.get('status', 'unavailable')}")
+            peak_integrity = report.get("risk_peak_integrity", {})
+            print(f"Risk peak integrity: {peak_integrity.get('status', 'unavailable')}")
             drawdown = report.get("drawdown", {})
             if drawdown.get("status") == "available":
                 print(
