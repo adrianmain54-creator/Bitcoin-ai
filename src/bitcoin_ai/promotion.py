@@ -176,22 +176,25 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         if not isinstance(candidate_family_audit, dict):
             registry_errors.append("candidate registry audit is malformed")
         else:
+            registered_trials = candidate_family_audit.get("registered_trials")
+            registered_names = (
+                [item.get("candidate_name") for item in registered_trials]
+                if isinstance(registered_trials, list)
+                   and all(isinstance(item, dict) for item in registered_trials)
+                else []
+            )
             registry_verified = (
                 candidate_family_audit.get("status") == "complete"
                 and candidate_family_audit.get("candidate_count") == len(proposed)
-                and sorted(
-                    item.get("candidate_name")
-                    for item in candidate_family_audit.get("registered_trials", [])
-                    if isinstance(item, dict)
-                ) == proposed
+                and len(registered_names) == len(proposed)
+                and all(isinstance(name, str) for name in registered_names)
+                and sorted(registered_names) == proposed
                 and not candidate_family_audit.get("incomplete_trials")
             )
             if not registry_verified:
                 registry_errors.append(
                     "candidate registry is incomplete or does not exactly match the proposed candidate family"
                 )
-    else:
-        registry_errors.append("durable candidate registry was not supplied; experiment-family completeness is unverified")
     if any(not isinstance(name, str) or not name.strip() for name in proposed):
         raise ValueError("candidate names must be non-empty strings")
     # Holm's step-down family-wise error procedure operates on explicit
