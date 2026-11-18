@@ -11,6 +11,7 @@ import json
 import math
 import random
 import uuid
+from datetime import datetime, timezone
 from statistics import mean, pstdev
 
 from .backtesting import BacktestError, Bar, _metrics
@@ -370,7 +371,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                      slippage_bps=5.0, periods_per_year=365.0,
                      bootstrap_trials=500, seed=7,
                      expected_interval_seconds=None,
-                     previous_holdout_experiments=None):
+                     previous_holdout_experiments=None,
+                     candidate_registry_path=None, code_revision=None):
     """Compare candidates using rolling OOS folds after auditing source data."""
     candidates = DEFAULT_CANDIDATES if candidates is None else candidates
     data_quality_report = audit_price_bars(
@@ -391,6 +393,56 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         raise BacktestError("seed must be an integer")
     if isinstance(periods_per_year, bool) or not isinstance(periods_per_year, (int, float)) or not math.isfinite(periods_per_year) or periods_per_year <= 0:
         raise BacktestError("periods_per_year must be finite and positive")
+
+    # Fingerprint the exact input and pre-register every fixed candidate before
+    # the first held-out return is evaluated. The broad first-to-last test span
+    # is intentionally conservative when walk-forward folds have gaps.
+    canonical_dataset = json.dumps(
+        [{"timestamp": bar.timestamp.isoformat(), "close": float(bar.close)} for bar in bars],
+        sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode("utf-8")
+    dataset_fingerprint = hashlib.sha256(canonical_dataset).hexdigest()
+    candidate_trial_ids = {}
+    registry_test_start = registry_test_end = None
+    if candidate_registry_path is not None:
+        if not isinstance(code_revision, str) or not code_revision.strip():
+            raise BacktestError("code_revision is required when candidate_registry_path is supplied")
+        from .candidate_registry import register_candidate_trial
+        preview_cursor = train_bars
+        planned_windows = []
+        while preview_cursor + test_bars < len(bars):
+            planned_windows.append((preview_cursor, preview_cursor + test_bars))
+            preview_cursor += step
+        if not planned_windows:
+            raise BacktestError("Not enough bars to pre-register a candidate holdout window")
+        registry_test_start = bars[planned_windows[0][0]].timestamp.isoformat()
+        registry_test_end = bars[planned_windows[-1][1]].timestamp.isoformat()
+        registry_run_id = uuid.uuid4().hex
+        registered_at = datetime.now(timezone.utc).isoformat()
+        for family, lookback in normalized:
+            candidate_name = f"{family}:{lookback}"
+            trial_id = f"{registry_run_id}:{candidate_name}"
+            register_candidate_trial(
+                candidate_registry_path,
+                trial_id=trial_id,
+                candidate_name=candidate_name,
+                strategy_definition={
+                    "family": family,
+                    "lookback": lookback,
+                    "fee_bps": float(fee_bps),
+                    "slippage_bps": float(slippage_bps),
+                    "periods_per_year": float(periods_per_year),
+                    "bootstrap_trials": bootstrap_trials,
+                    "seed": seed,
+                    "test_window_policy": "first-to-last-walk-forward-test-window",
+                },
+                dataset_fingerprint=dataset_fingerprint,
+                code_revision=code_revision,
+                test_start=registry_test_start,
+                test_end=registry_test_end,
+                registered_at=registered_at,
+            )
+            candidate_trial_ids[candidate_name] = trial_id
     closes = [float(b.close) for b in bars]
     cost = (fee_bps + slippage_bps) / 10000
     cursor, folds, oos, benchmark, stress_oos = train_bars, [], [], [], []
@@ -682,13 +734,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 periods_per_year,
             ),
         }
-    # Fingerprint the exact ordered input series. Prior experiment records must
-    # be supplied from an append-only external ledger by the caller.
-    canonical_dataset = json.dumps(
-        [{"timestamp": bar.timestamp.isoformat(), "close": float(bar.close)} for bar in bars],
-        sort_keys=True, separators=(",", ":"), allow_nan=False,
-    ).encode("utf-8")
-    dataset_fingerprint = hashlib.sha256(canonical_dataset).hexdigest()
+    # Holdout identity was fingerprinted before any test-window evaluation.
     from .holdout_audit import audit_holdout_reuse
 
     prior_ledger = [] if previous_holdout_experiments is None else previous_holdout_experiments
@@ -708,7 +754,41 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     holdout_reuse_detected = any(
         item["status"] == "reuse_detected" for item in holdout_audits
     )
+    if candidate_registry_path is not None:
+        from .candidate_registry import audit_candidate_family, complete_candidate_trial
+        completed_at = datetime.now(timezone.utc).isoformat()
+        for candidate_name, candidate in fixed_candidate_comparison.items():
+            uncertainty = candidate["paired_edge_uncertainty"]
+            complete_candidate_trial(
+                candidate_registry_path,
+                trial_id=candidate_trial_ids[candidate_name],
+                outcome={
+                    "bootstrap_null_p_value": uncertainty["bootstrap_null_p_value"],
+                    "observations": uncertainty["observations"],
+                    "return_pct": candidate["return_pct"],
+                    "excess_return_vs_buy_and_hold_pct_points": candidate[
+                        "excess_return_vs_buy_and_hold_pct_points"
+                    ],
+                },
+                completed_at=completed_at,
+            )
+        candidate_family_audit = audit_candidate_family(
+            candidate_registry_path,
+            dataset_fingerprint=dataset_fingerprint,
+            test_start=registry_test_start,
+            test_end=registry_test_end,
+        )
+    else:
+        candidate_family_audit = {
+            "status": "not_supplied",
+            "candidate_count": 0,
+            "registered_trials": [],
+            "incomplete_trials": [],
+            "warning": "No durable candidate registry was supplied; family completeness is unverified.",
+        }
+
     report = {
+        "candidate_registry_audit": candidate_family_audit,
         "holdout_reuse_audit": {
             "status": "reuse_detected" if holdout_reuse_detected else (
                 "no_prior_ledger_supplied" if previous_holdout_experiments is None
@@ -773,5 +853,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     report["independent_validation"] = evaluate_independent_strategy_validation(
         fixed_candidate_comparison, data_quality_report,
         holdout_reuse_audit=report["holdout_reuse_audit"],
+        candidate_family_audit=candidate_family_audit,
     )
     return report
