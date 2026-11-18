@@ -54,8 +54,9 @@ def test_three_source_clean_history_prepares_provenance_bundle():
 
 
 def test_fingerprint_is_deterministic_and_source_order_independent():
-    forward = ingest()
-    reverse = ingest([payload("kraken"), payload("binance"), payload("coinbase")])
+    sources = [payload("binance"), payload("coinbase"), payload("kraken")]
+    forward = ingest(sources)
+    reverse = ingest(list(reversed(sources)))
     assert forward["dataset_fingerprint"] == reverse["dataset_fingerprint"]
 
 
