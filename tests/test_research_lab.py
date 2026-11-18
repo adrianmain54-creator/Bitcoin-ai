@@ -401,3 +401,54 @@ def test_cash_candidate_has_zero_return_in_every_regime():
     for regime in candidate["regime_attribution"].values():
         assert regime["strategy_return_pct"] == 0.0
         assert regime["strategy_return_at_2x_cost_pct"] == 0.0
+
+
+def test_paired_edge_bootstrap_detects_clear_synthetic_relative_edge():
+    from bitcoin_ai.research_lab import _paired_edge_bootstrap
+
+    result = _paired_edge_bootstrap(
+        [0.01] * 60, [0.001] * 60, trials=200, seed=19,
+    )
+    assert result["observations"] == 60
+    assert result["excess_return_p05_pct"] > 0
+    assert result["probability_positive_pct"] == 100.0
+    assert result["excess_return_p05_pct"] <= result["excess_return_median_pct"]
+    assert result["excess_return_median_pct"] <= result["excess_return_p95_pct"]
+    assert "not a formal hypothesis test" in result["interpretation"]
+
+
+def test_paired_edge_bootstrap_keeps_benchmark_intervals_paired():
+    from bitcoin_ai.research_lab import _paired_edge_bootstrap
+
+    result = _paired_edge_bootstrap(
+        [0.0] * 60, [0.01] * 60, trials=200, seed=19,
+    )
+    assert result["observed_excess_return_pct"] < 0
+    assert result["excess_return_p95_pct"] < 0
+    assert result["probability_positive_pct"] == 0.0
+
+
+def test_paired_edge_bootstrap_rejects_mismatched_or_invalid_returns():
+    from bitcoin_ai.research_lab import _paired_edge_bootstrap
+
+    with pytest.raises(BacktestError, match="equal lengths"):
+        _paired_edge_bootstrap([0.01], [], trials=100, seed=1)
+    with pytest.raises(BacktestError, match="greater than -1"):
+        _paired_edge_bootstrap([-1.0], [0.0], trials=100, seed=1)
+
+
+def test_fixed_candidate_report_includes_deterministic_edge_uncertainty():
+    kwargs = dict(
+        train_bars=100, test_bars=30, bootstrap_trials=100, seed=31,
+        candidates=[
+            {"family": "momentum", "lookback": 8},
+            {"family": "cash", "lookback": 2},
+        ],
+    )
+    first = run_strategy_lab(bars(), **kwargs)
+    second = run_strategy_lab(bars(), **kwargs)
+    for key, candidate in first["fixed_candidate_oos_comparison"]["candidates"].items():
+        uncertainty = candidate["paired_edge_uncertainty"]
+        assert uncertainty["observations"] == first["out_of_sample_returns"]
+        assert uncertainty == second["fixed_candidate_oos_comparison"]["candidates"][key]["paired_edge_uncertainty"]
+        assert 0.0 <= uncertainty["probability_positive_pct"] <= 100.0
