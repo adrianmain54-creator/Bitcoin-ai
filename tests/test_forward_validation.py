@@ -24,7 +24,7 @@ def test_forward_evidence_requires_both_observation_count_and_elapsed_time():
     )
     assert result["status"] == "evidence_collected"
     assert result["observations"] == 3
-    assert result["strategy_return_pct"] == 0.5
+    assert result["strategy_return_pct"] == 1.0
     assert result["buy_and_hold_return_pct"] == 4.0
     assert result["excess_return_vs_buy_and_hold_pct_points"] == -3.0
 
