@@ -123,3 +123,8 @@ The paper service requires both Binance and Kraken. The cross-check now compares
 ### Three-source paper market-data verification
 
 The paper service now requires aligned completed BTC-USDT candle histories from Binance, Kraken, and Coinbase. Each source must be fresh and contiguous, and every overlapping candle is compared pairwise against the configured deviation tolerance. An unavailable, stale, unsupported, or divergent Coinbase feed stops the paper cycle; the service does not silently downgrade to two sources. Coinbase's public BTC-USDT product availability and API limits may vary, so this check can make paper cycles unavailable when that venue cannot provide the requested interval. Three-venue agreement is still not proof against shared upstream errors, coordinated manipulation, or market-wide price distortion. Simulation only; no live exchange orders.
+
+
+### OHLCV anomaly diagnostics
+
+The research-only `bitcoin_ai.market_anomaly.audit_ohlcv_anomalies` helper validates timestamp order and OHLCV relationships, then flags abnormal volume using a prior-only rolling median/MAD baseline, unusually wide candle ranges, and extreme close-to-close returns. The evaluated candle is excluded from its own baseline. These are heuristic diagnostics, not a spoofing or manipulation detector, and they are not currently wired into paper execution. Venue-reported volume can be incomplete or unreliable; alerts require human review and calibration before any strategy use.
