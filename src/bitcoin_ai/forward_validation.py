@@ -82,7 +82,7 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
     ]
     cadence_gaps = []
     median_interval = None
-    if len(intervals) >= 3:
+    if len(intervals) >= 2:
         ordered_intervals = sorted(intervals)
         middle = len(ordered_intervals) // 2
         median_interval = (
@@ -94,7 +94,7 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
             for index, seconds in enumerate(intervals)
             if seconds > 3 * median_interval
         ]
-    cadence_known = len(intervals) >= 3
+    cadence_known = len(intervals) >= 2
     sufficient = (
         count >= min_observations and elapsed_days >= min_days
         and cadence_known and not cadence_gaps
