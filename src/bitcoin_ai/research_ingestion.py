@@ -149,10 +149,11 @@ def prepare_research_dataset(
                           max_age_seconds=max_age_seconds)
         for item in source_payloads
     ]
-    names = [item["source"] for item in sources]
-    if len(set(names)) != len(names):
+    source_names = [item["source"] for item in sources]
+    if len(set(source_names)) != len(source_names):
         raise ResearchIngestionError("source names must be unique")
     sources.sort(key=lambda item: item["source"])
+    names = [item["source"] for item in sources]
 
     reference = sources[0]["bars"]
     reference_times = [bar["timestamp"] for bar in reference]
