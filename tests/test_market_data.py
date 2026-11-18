@@ -198,3 +198,66 @@ def test_cross_check_rejects_insufficient_overlapping_history():
     client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
     with pytest.raises(MarketDataError, match="Insufficient cross-source history"):
         client.cross_checked_candle_history(now=NOW, min_overlap=3)
+
+
+
+def test_three_source_check_accepts_aligned_binance_kraken_coinbase_history():
+    base = int(NOW.timestamp()) - 25 * 300
+    prices = [100.0 + i * 0.1 for i in range(25)]
+    binance_rows = [
+        candle((base + i * 300) * 1000, price, (base + (i + 1) * 300) * 1000 - 1)
+        for i, price in enumerate(prices)
+    ]
+    kraken_rows = [
+        [base + i * 300, "1", "1", "1", str(price), "1", "1", 1]
+        for i, price in enumerate(prices)
+    ]
+    coinbase_rows = [
+        [base + i * 300, "1", "1", "1", str(price * 1.001), "1"]
+        for i, price in enumerate(prices)
+    ][::-1]
+    def opener(request, **kwargs):
+        url = request.full_url
+        if "api.binance.com" in url:
+            return Response(binance_rows)
+        if "api.kraken.com" in url:
+            return Response({"error": [], "result": {"XXBTZUSDT": kraken_rows, "last": 1}})
+        return Response(coinbase_rows)
+    client = BinanceCandleClient(opener=opener)
+    report = client.cross_checked_three_source_candle_history(
+        interval="5m", now=NOW, min_overlap=20, max_price_deviation=0.01,
+    )
+    assert report["audit"]["status"] == "three_source_cross_checked"
+    assert report["audit"]["sources"] == ["binance", "kraken", "coinbase"]
+    assert report["audit"]["aligned_candles"] == 25
+
+
+def test_three_source_check_rejects_coinbase_history_divergence():
+    base = int(NOW.timestamp()) - 25 * 300
+    prices = [100.0 + i * 0.1 for i in range(25)]
+    binance_rows = [
+        candle((base + i * 300) * 1000, price, (base + (i + 1) * 300) * 1000 - 1)
+        for i, price in enumerate(prices)
+    ]
+    kraken_rows = [
+        [base + i * 300, "1", "1", "1", str(price), "1", "1", 1]
+        for i, price in enumerate(prices)
+    ]
+    coinbase_prices = prices.copy()
+    coinbase_prices[8] *= 1.05
+    coinbase_rows = [
+        [base + i * 300, "1", "1", "1", str(price), "1"]
+        for i, price in enumerate(coinbase_prices)
+    ][::-1]
+    def opener(request, **kwargs):
+        url = request.full_url
+        if "api.binance.com" in url:
+            return Response(binance_rows)
+        if "api.kraken.com" in url:
+            return Response({"error": [], "result": {"XXBTZUSDT": kraken_rows, "last": 1}})
+        return Response(coinbase_rows)
+    client = BinanceCandleClient(opener=opener)
+    with pytest.raises(MarketDataError, match="Three-source candle history divergence"):
+        client.cross_checked_three_source_candle_history(
+            interval="5m", now=NOW, min_overlap=20, max_price_deviation=0.01,
+        )

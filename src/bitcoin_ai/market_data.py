@@ -205,6 +205,10 @@ class BinanceCandleClient:
         return {
             "closes": binance_closes,
             "latest": binance_latest,
+            "source_closes": {
+                "binance": binance_closes,
+                "kraken": kraken_closes,
+            },
             "audit": {
                 "status": "cross_checked",
                 "sources": ["binance", "kraken"],
@@ -218,6 +222,132 @@ class BinanceCandleClient:
                     "All overlapping close prices agreed within the configured "
                     "tolerance. This is a consistency check, not proof that either "
                     "exchange or the shared market is manipulation-free."
+                ),
+            },
+        }
+
+
+    COINBASE_URL = "https://api.exchange.coinbase.com/products/BTC-USDT/candles"
+    COINBASE_GRANULARITY = {
+        "1m": 60, "5m": 300, "15m": 900,
+        "1h": 3600, "1d": 86400,
+    }
+
+    def _coinbase(self, interval: str, limit: int, current: datetime):
+        """Fetch and validate Coinbase BTC-USDT candles as a third venue."""
+        if interval not in self.COINBASE_GRANULARITY:
+            raise MarketDataError(
+                f"Coinbase does not support {interval}; refusing interval substitution"
+            )
+        granularity = self.COINBASE_GRANULARITY[interval]
+        url = f"{self.COINBASE_URL}?granularity={granularity}"
+        rows = self._get_json(url)
+        if not isinstance(rows, list):
+            raise MarketDataError("Unexpected Coinbase candle response")
+        parsed = []
+        for row in rows:
+            if not isinstance(row, list) or len(row) < 6:
+                raise MarketDataError("Invalid Coinbase candle row")
+            try:
+                open_ts = int(row[0])
+                close = float(row[4])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise MarketDataError("Invalid Coinbase candle values") from exc
+            if not math.isfinite(close) or close <= 0:
+                raise MarketDataError("Invalid Coinbase candle close")
+            parsed.append((open_ts, close))
+        parsed.sort(key=lambda item: item[0])
+        if len(parsed) != len({item[0] for item in parsed}):
+            raise MarketDataError("Coinbase candle timestamps contain duplicates")
+        duration = granularity
+        completed = [
+            (close, open_ts + duration)
+            for open_ts, close in parsed
+            if open_ts + duration <= current.timestamp()
+        ][-limit:]
+        if len(completed) < 2:
+            raise MarketDataError("Not enough completed Coinbase candles")
+        if any(completed[i][1] - completed[i - 1][1] != duration
+               for i in range(1, len(completed))):
+            raise MarketDataError("Coinbase candles contain a missing interval")
+        return ([item[0] for item in completed],
+                datetime.fromtimestamp(completed[-1][1], timezone.utc))
+
+    def cross_checked_three_source_candle_history(
+        self, *, interval: str = "5m", limit: int = 100,
+        now: datetime | None = None, max_price_deviation: float = 0.01,
+        min_overlap: int = 20,
+    ) -> dict:
+        """Require aligned Binance, Kraken, and Coinbase candle histories.
+
+        All three venues must be fresh and contiguous. Every overlapping close
+        is compared pairwise; an unavailable or divergent third source fails
+        closed instead of silently downgrading to two-source validation.
+        """
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None or current.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+        pair = self.cross_checked_candle_history(
+            interval=interval, limit=limit, now=current,
+            max_price_deviation=max_price_deviation, min_overlap=min_overlap,
+        )
+        try:
+            third_closes, third_latest = self._coinbase(interval, limit, current)
+        except (MarketDataError, URLError, TimeoutError, OSError, ValueError, TypeError, KeyError) as exc:
+            raise MarketDataError(f"Three-source check requires Coinbase data: {exc}") from exc
+        max_age = 2 * self.INTERVAL_MINUTES[interval] * 60
+        if (current - third_latest).total_seconds() > max_age:
+            raise MarketDataError("Coinbase latest completed candle is stale")
+        if abs((pair["latest"] - third_latest).total_seconds()) > 2:
+            raise MarketDataError("Coinbase latest candle timestamp does not align with Binance/Kraken")
+        overlap = min(len(pair["closes"]), len(third_closes))
+        if overlap < min_overlap:
+            raise MarketDataError(
+                f"Insufficient three-source history: {overlap} aligned candles; "
+                f"at least {min_overlap} required"
+            )
+        binance = pair["closes"][-overlap:]
+        kraken = pair["source_closes"]["kraken"][-overlap:]
+        coinbase = third_closes[-overlap:]
+        deviations = {
+            "binance_kraken": [
+                abs(a - b) / ((a + b) / 2.0) for a, b in zip(binance, kraken)
+            ],
+            "binance_coinbase": [
+                abs(a - c) / ((a + c) / 2.0) for a, c in zip(binance, coinbase)
+            ],
+            "kraken_coinbase": [
+                abs(b - c) / ((b + c) / 2.0) for b, c in zip(kraken, coinbase)
+            ],
+        }
+        maxima = {name: max(values) for name, values in deviations.items()}
+        means = {name: sum(values) / len(values) for name, values in deviations.items()}
+        divergent = {
+            name: sum(value > max_price_deviation for value in values)
+            for name, values in deviations.items()
+        }
+        if any(divergent.values()):
+            raise MarketDataError(
+                "Three-source candle history divergence exceeds tolerance: "
+                + ", ".join(f"{name}={count}" for name, count in divergent.items())
+            )
+        return {
+            "closes": pair["closes"],
+            "latest": pair["latest"],
+            "audit": {
+                "status": "three_source_cross_checked",
+                "sources": ["binance", "kraken", "coinbase"],
+                "product": "BTC-USDT",
+                "interval": interval,
+                "aligned_candles": overlap,
+                "max_price_deviation": maxima,
+                "mean_price_deviation": means,
+                "max_allowed_deviation": max_price_deviation,
+                "divergent_candles": divergent,
+                "interpretation": (
+                    "All three venue histories agreed within the configured tolerance. "
+                    "This reduces dependence on any one venue but cannot rule out "
+                    "shared upstream errors, coordinated manipulation, or market-wide distortion."
                 ),
             },
         }
