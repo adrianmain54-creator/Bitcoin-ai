@@ -138,3 +138,192 @@ def evaluate_strategy_abstention(candidates, *, min_observations=180,
             "review and paper-forward validation. A fail means abstain to cash."
         ),
     }
+
+
+def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
+                                            min_observations=180,
+                                            min_probability_positive_pct=95.0):
+    """Run deterministic proposer, skeptic, and evidence-review roles.
+
+    This is an auditable rules engine, not an LLM or proof of strategy skill.
+    It only recommends whether a human may review a separate paper-forward
+    trial. It never selects a strategy or authorizes execution.
+    """
+    if not isinstance(candidates, dict):
+        raise ValueError("candidates must be a dictionary")
+    if not isinstance(data_quality_audit, dict):
+        raise ValueError("data_quality_audit must be a dictionary")
+
+    # Proposer: enumerate the fixed candidates already defined before OOS scoring.
+    proposed = sorted(candidates)
+    # Skeptic: independently re-run the conservative evidence gate per candidate.
+    skeptic_reviews = {}
+    for name in proposed:
+        skeptic_reviews[name] = evaluate_strategy_abstention(
+            {name: candidates[name]},
+            min_observations=min_observations,
+            min_probability_positive_pct=min_probability_positive_pct,
+        )["candidate_assessments"][name]
+    # Evidence reviewer: verify audit state and reconcile every proposed candidate.
+    audit_status = data_quality_audit.get("status")
+    audit_usable = data_quality_audit.get("usable") is True
+    missing_reviews = [name for name in proposed if name not in skeptic_reviews]
+    passing = [name for name in proposed
+               if skeptic_reviews.get(name, {}).get("eligible_for_review") is True]
+    evidence_errors = []
+    if not audit_usable or audit_status == "fail":
+        evidence_errors.append("historical data quality audit is not usable")
+    if missing_reviews:
+        evidence_errors.append("one or more proposed candidates lack skeptic review")
+    if not proposed:
+        evidence_errors.append("no fixed candidates were proposed")
+
+    # Regime slices are descriptive evidence, not tuning inputs. If a candidate
+    # has regime results but positive excess is confined to one adequately
+    # sampled regime, downgrade it to human review rather than rejecting it.
+    regime_diagnostics = {}
+    regime_concentration = []
+    for name in proposed:
+        candidate = candidates.get(name)
+        slices = candidate.get("regime_attribution") if isinstance(candidate, dict) else None
+        if not isinstance(slices, dict) or not slices:
+            regime_diagnostics[name] = {
+                "available": False,
+                "interpretation": "No regime attribution supplied; no regime robustness conclusion.",
+            }
+            continue
+        supported = []
+        positive = []
+        for regime, metrics in slices.items():
+            if not isinstance(metrics, dict):
+                continue
+            observations = metrics.get("observations")
+            excess = metrics.get("excess_return_vs_buy_and_hold_pct_points")
+            if (isinstance(observations, int) and not isinstance(observations, bool)
+                    and observations >= 30
+                    and isinstance(excess, (int, float)) and not isinstance(excess, bool)
+                    and math.isfinite(excess)):
+                supported.append(regime)
+                if excess > 0:
+                    positive.append(regime)
+        concentrated = len(supported) >= 2 and len(positive) <= 1
+        regime_diagnostics[name] = {
+            "available": True,
+            "adequately_sampled_regimes": supported,
+            "positive_excess_regimes": positive,
+            "concentrated_in_one_or_fewer_regimes": concentrated,
+            "minimum_observations_per_regime": 30,
+            "interpretation": (
+                "Edge is concentrated in one or fewer adequately sampled regimes; require human review."
+                if concentrated else
+                "No single-regime concentration detected in adequately sampled slices; this is not proof of robustness."
+            ),
+        }
+        if concentrated and name in passing:
+            regime_concentration.append(name)
+
+    # Compare only already-declared fixed candidates from the same family.
+    # This is a diagnostic, never a parameter search or replacement selector.
+    parameter_diagnostics = {}
+    parameter_sensitivity = []
+    for name in proposed:
+        candidate = candidates.get(name)
+        if not isinstance(candidate, dict):
+            parameter_diagnostics[name] = {"available": False, "nearby_candidates": []}
+            continue
+        family = candidate.get("family")
+        lookback = candidate.get("lookback")
+        edge = candidate.get("excess_return_vs_buy_and_hold_pct_points")
+        observations = candidate.get("observations")
+        valid_identity = (
+            isinstance(family, str)
+            and isinstance(lookback, int) and not isinstance(lookback, bool)
+            and lookback > 0
+        )
+        if not valid_identity:
+            parameter_diagnostics[name] = {
+                "available": False,
+                "nearby_candidates": [],
+                "interpretation": "Candidate family/lookback metadata unavailable.",
+            }
+            continue
+        radius = max(1, math.ceil(lookback * 0.25))
+        nearby = []
+        for peer_name in proposed:
+            if peer_name == name:
+                continue
+            peer = candidates.get(peer_name)
+            if not isinstance(peer, dict) or peer.get("family") != family:
+                continue
+            peer_lookback = peer.get("lookback")
+            peer_edge = peer.get("excess_return_vs_buy_and_hold_pct_points")
+            peer_obs = peer.get("observations")
+            if (isinstance(peer_lookback, int) and not isinstance(peer_lookback, bool)
+                    and 0 < abs(peer_lookback - lookback) <= radius
+                    and isinstance(peer_obs, int) and not isinstance(peer_obs, bool)
+                    and peer_obs >= 30
+                    and isinstance(peer_edge, (int, float)) and not isinstance(peer_edge, bool)
+                    and math.isfinite(peer_edge)):
+                nearby.append({
+                    "candidate": peer_name,
+                    "lookback": peer_lookback,
+                    "excess_return_vs_buy_and_hold_pct_points": peer_edge,
+                })
+        supported = (
+            isinstance(observations, int) and not isinstance(observations, bool)
+            and observations >= 30
+            and isinstance(edge, (int, float)) and not isinstance(edge, bool)
+            and math.isfinite(edge)
+        )
+        collapses = supported and edge > 0 and any(
+            peer["excess_return_vs_buy_and_hold_pct_points"] <= 0 for peer in nearby
+        )
+        parameter_diagnostics[name] = {
+            "available": bool(nearby),
+            "nearby_candidates": nearby,
+            "comparison_radius_lookback_bars": radius,
+            "edge_collapses_in_nearby_variant": bool(collapses),
+            "interpretation": (
+                "Positive edge disappears in a nearby fixed parameter variant; require human review."
+                if collapses else
+                "No collapse detected among supplied nearby variants; this is not proof of parameter robustness."
+            ),
+        }
+        if collapses and name in passing:
+            parameter_sensitivity.append(name)
+
+    if evidence_errors or not passing:
+        verdict = "reject"
+    elif audit_status != "pass" or regime_concentration or parameter_sensitivity:
+        verdict = "needs_review"
+    else:
+        verdict = "eligible_for_paper_review"
+
+    return {
+        "verdict": verdict,
+        "proposer": {
+            "fixed_candidates": proposed,
+            "basis": "candidate definitions supplied before held-out evaluation",
+        },
+        "skeptic": {
+            "candidate_reviews": skeptic_reviews,
+            "passing_candidates": passing,
+            "method": "paired OOS edge, bootstrap lower bound and positive share, minimum sample, and 2x-cost checks",
+        },
+        "evidence_reviewer": {
+            "data_quality_status": audit_status,
+            "data_quality_usable": audit_usable,
+            "errors": evidence_errors,
+            "candidate_review_coverage": len(skeptic_reviews),
+            "proposed_candidate_count": len(proposed),
+            "regime_diagnostics": regime_diagnostics,
+            "regime_concentration_requires_review": regime_concentration,
+            "parameter_sensitivity_diagnostics": parameter_diagnostics,
+            "parameter_sensitivity_requires_review": parameter_sensitivity,
+        },
+        "scope": (
+            "Deterministic independent-role review only. Eligibility means a human "
+            "may consider a separately monitored paper-forward trial; it is not a "
+            "strategy selection, profitability claim, or authorization to trade."
+        ),
+    }

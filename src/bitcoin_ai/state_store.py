@@ -32,8 +32,10 @@ class PaperStateStore:
                 cash=account.cash, btc=account.btc, fee_bps=account.fee_bps,
                 slippage_bps=account.slippage_bps,
                 max_allocation=account.max_allocation, trades=account.trades,
+                paper_observations=account.paper_observations,
             )
             json.dumps(account.trades, allow_nan=False)
+            json.dumps(account.paper_observations, allow_nan=False)
             _validate_risk_state(risk)
             payload = {
                 "version": self.VERSION,
@@ -41,6 +43,7 @@ class PaperStateStore:
                     "cash": account.cash, "btc": account.btc,
                     "fee_bps": account.fee_bps, "slippage_bps": account.slippage_bps,
                     "max_allocation": account.max_allocation, "trades": account.trades,
+                    "paper_observations": account.paper_observations,
                 },
                 "risk": {
                     **asdict(risk),
@@ -86,6 +89,7 @@ class PaperStateStore:
                 cash=a["cash"], btc=a["btc"], fee_bps=a["fee_bps"],
                 slippage_bps=a["slippage_bps"], max_allocation=a["max_allocation"],
                 trades=trades,
+                paper_observations=a.get("paper_observations", []),
             )
             last_trade = datetime.fromisoformat(r["last_trade_at"]) if r["last_trade_at"] else None
             risk = RiskState(

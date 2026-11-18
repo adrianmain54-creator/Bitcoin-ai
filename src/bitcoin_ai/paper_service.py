@@ -12,6 +12,10 @@ from .market_data import BinanceCandleClient, MarketDataError
 from .paper_trading import PaperAccount
 from .risk import RiskLimits, new_risk_state
 from .state_store import PaperStateStore, StateStoreError
+from .forward_validation import (
+    GENESIS_HASH, evaluate_forward_paper_evidence, observation_digest,
+    verify_observation_chain,
+)
 
 
 class PaperService:
@@ -52,10 +56,43 @@ class PaperService:
             )
             risk = new_risk_state(account.equity(closes[-1]), now)
 
+        # Reject edited/corrupt history before using it as evidence or extending it.
+        verify_observation_chain(account.paper_observations)
+
+        # The same completed candle may be returned by multiple polls.
+        # Never let duplicate observations create repeated decisions or inflate
+        # forward-evidence sample counts.
+        if account.paper_observations:
+            last_seen = datetime.fromisoformat(account.paper_observations[-1]["observed_at"])
+            if observed_at <= last_seen:
+                return {
+                    "mode": "paper",
+                    "status": "duplicate_or_stale_observation",
+                    "observed_at": observed_at.isoformat(),
+                    "state_path": str(self.store.path),
+                }
+
+        baseline_equity = account.equity(closes[-1])
         result = run_paper_cycle(
             closes=closes, account=account, risk_state=risk,
             observed_at=observed_at, now=now, limits=self.limits,
         )
+        observation = {
+            "observed_at": observed_at.isoformat(),
+            "price": closes[-1],
+            "equity": result.equity,
+            "baseline_equity": baseline_equity,
+            "signal": result.signal.action,
+            "risk_allowed": result.risk.allowed,
+            "risk_halted": result.risk.halted,
+            "trade_count": len(account.trades),
+        }
+        observation["previous_hash"] = (
+            account.paper_observations[-1]["observation_hash"]
+            if account.paper_observations else GENESIS_HASH
+        )
+        observation["observation_hash"] = observation_digest(observation)
+        account.paper_observations.append(observation)
         self.store.save(account, risk)
         return {
             "mode": "paper",
@@ -68,6 +105,7 @@ class PaperService:
             "risk_reason": result.risk.reason,
             "execution": result.execution,
             "equity": result.equity,
+            "forward_evidence": evaluate_forward_paper_evidence(account.paper_observations),
             "state_path": str(self.store.path),
         }
 

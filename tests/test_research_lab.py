@@ -575,3 +575,21 @@ def test_research_lab_reports_anomaly_warnings_without_rewriting_prices():
     assert result["data_quality_audit"]["status"] == "review"
     assert result["data_quality_audit"]["anomaly_audit"]["outlier_count"] >= 1
     assert data[120].close == original_close * 1.5
+
+
+def test_research_report_includes_independent_validation_roles():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "momentum", "lookback": 8},
+            {"family": "cash", "lookback": 2},
+        ],
+        bootstrap_trials=100,
+    )
+    validation = result["independent_validation"]
+    assert validation["verdict"] in {
+        "reject", "needs_review", "eligible_for_paper_review"
+    }
+    assert validation["proposer"]["fixed_candidates"] == ["cash:2", "momentum:8"]
+    assert set(validation["skeptic"]["candidate_reviews"]) == {"cash:2", "momentum:8"}
+    assert validation["evidence_reviewer"]["candidate_review_coverage"] == 2
