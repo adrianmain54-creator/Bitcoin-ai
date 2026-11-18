@@ -119,7 +119,7 @@ def test_cross_check_accepts_aligned_exchange_prices():
     binance_rows, kraken_payload = cross_check_payloads(100, 100.4)
     payloads = iter([binance_rows, kraken_payload])
     client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
-    closes, observed = client.cross_checked_completed_closes(now=NOW)
+    closes, observed = client.cross_checked_completed_closes(now=NOW, min_overlap=2)
     assert closes == [99.0, 100.0]
     assert observed == datetime.fromtimestamp(((int(NOW.timestamp()) * 1000) - 1) / 1000, timezone.utc)
 
@@ -128,8 +128,8 @@ def test_cross_check_rejects_divergent_exchange_prices():
     binance_rows, kraken_payload = cross_check_payloads(100, 103)
     payloads = iter([binance_rows, kraken_payload])
     client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
-    with pytest.raises(MarketDataError, match="price divergence"):
-        client.cross_checked_completed_closes(now=NOW)
+    with pytest.raises(MarketDataError, match="history contains 1 divergent"):
+        client.cross_checked_completed_closes(now=NOW, min_overlap=2)
 
 
 def test_cross_check_fails_closed_if_one_exchange_is_unavailable():
@@ -144,3 +144,57 @@ def test_cross_check_fails_closed_if_one_exchange_is_unavailable():
     client = BinanceCandleClient(opener=opener)
     with pytest.raises(MarketDataError, match="requires Kraken"):
         client.cross_checked_completed_closes(now=NOW)
+
+
+def test_cross_check_rejects_historical_divergence_even_when_latest_prices_match():
+    base_ms = int(NOW.timestamp() * 1000) - 1_500_000
+    base_ts = int(NOW.timestamp()) - 1_500
+    binance_rows = [
+        candle(base_ms + i * 300_000, price, base_ms + i * 300_000 + 299_999)
+        for i, price in enumerate([100, 101, 102, 103, 104])
+    ]
+    kraken_rows = [
+        [base_ts + i * 300, "1", "1", "1", str(price), "1", "1", 1]
+        for i, price in enumerate([100, 110, 102, 103, 104])
+    ]
+    payloads = iter([
+        binance_rows,
+        {"error": [], "result": {"XXBTZUSDT": kraken_rows, "last": 1}},
+    ])
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
+    with pytest.raises(MarketDataError, match="history contains 1 divergent"):
+        client.cross_checked_candle_history(now=NOW, min_overlap=5)
+
+
+def test_cross_check_reports_full_history_consistency():
+    base_ms = int(NOW.timestamp() * 1000) - 1_500_000
+    base_ts = int(NOW.timestamp()) - 1_500
+    prices = [100, 101, 102, 103, 104]
+    binance_rows = [
+        candle(base_ms + i * 300_000, price, base_ms + i * 300_000 + 299_999)
+        for i, price in enumerate(prices)
+    ]
+    kraken_rows = [
+        [base_ts + i * 300, "1", "1", "1", str(price * 1.001), "1", "1", 1]
+        for i, price in enumerate(prices)
+    ]
+    payloads = iter([
+        binance_rows,
+        {"error": [], "result": {"XXBTZUSDT": kraken_rows, "last": 1}},
+    ])
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
+    report = client.cross_checked_candle_history(
+        now=NOW, min_overlap=5, max_price_deviation=0.002,
+    )
+    assert report["audit"]["status"] == "cross_checked"
+    assert report["audit"]["aligned_candles"] == 5
+    assert report["audit"]["divergent_candles"] == 0
+    assert len(report["closes"]) == 5
+
+
+def test_cross_check_rejects_insufficient_overlapping_history():
+    binance_rows, kraken_payload = cross_check_payloads()
+    payloads = iter([binance_rows, kraken_payload])
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
+    with pytest.raises(MarketDataError, match="Insufficient cross-source history"):
+        client.cross_checked_candle_history(now=NOW, min_overlap=3)
