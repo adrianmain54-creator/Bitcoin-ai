@@ -183,8 +183,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                    and all(isinstance(item, dict) for item in registered_trials)
                 else []
             )
-            registry_outcomes_match = True
-            if len(registered_trials) != len(proposed):
+            registry_outcomes_match = isinstance(registered_trials, list)
+            if not registry_outcomes_match or len(registered_trials) != len(proposed):
                 registry_outcomes_match = False
             else:
                 for item in registered_trials:
