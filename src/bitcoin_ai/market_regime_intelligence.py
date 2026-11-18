@@ -49,7 +49,7 @@ def classify_market_conditions(
     divergent = exchange_audit.get("divergent_candles")
     if status not in {"cross_checked", "three_source_cross_checked"}:
         raise MarketRegimeIntelligenceError("exchange audit is not a recognized successful cross-check")
-    if not isinstance(sources, list) or len(sources) < 2 or len(set(sources)) != len(sources):
+    if (not isinstance(sources, list) or len(sources) < 2\n            or any(not isinstance(source, str) or not source for source in sources)\n            or len(set(sources)) != len(sources)):
         raise MarketRegimeIntelligenceError("exchange audit must identify at least two unique sources")
     if (isinstance(aligned, bool) or not isinstance(aligned, int)
             or aligned < minimum_aligned_candles):
