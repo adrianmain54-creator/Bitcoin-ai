@@ -19,9 +19,10 @@ class FakeClient:
         self.cross_check_calls = 0
     def completed_closes(self, **kwargs):
         raise AssertionError("paper trading must not use a single exchange feed")
-    def cross_checked_completed_closes(self, **kwargs):
+    def cross_checked_three_source_candle_history(self, **kwargs):
         self.cross_check_calls += 1
-        return self.closes, self.observed_at
+        return {"closes": self.closes, "latest": self.observed_at,
+                "audit": {"status": "three_source_cross_checked"}}
 
 
 def test_first_cycle_initializes_then_persists_state(tmp_path):
@@ -52,8 +53,8 @@ def test_corrupt_state_is_not_silently_reset(tmp_path):
 
 def test_market_data_failure_does_not_create_account_state(tmp_path):
     class BrokenClient:
-        def cross_checked_completed_closes(self, **kwargs):
-            raise MarketDataError("one exchange offline; cross-check unavailable")
+        def cross_checked_three_source_candle_history(self, **kwargs):
+            raise MarketDataError("Coinbase offline; three-source check unavailable")
     path = tmp_path / "paper.json"
     service = PaperService(state_path=str(path), client=BrokenClient(),
                            clock=lambda: NOW)
