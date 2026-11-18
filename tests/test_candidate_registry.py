@@ -121,23 +121,23 @@ def test_detects_tampering(tmp_path):
         load_candidate_registry(path)
 
 
-def test_registration_after_holdout_start_is_rejected(tmp_path):
-    with pytest.raises(CandidateRegistryError, match="before its holdout window"):
-        register_candidate_trial(
-            tmp_path / "trials.json",
-            trial_id="late", candidate_name="late",
-            strategy_definition={"lookback": 10},
-            dataset_fingerprint=FINGERPRINT, code_revision="abc123",
-            test_start=START, test_end=END,
-            registered_at="2025-01-02T00:00:00+00:00",
-        )
+def test_registration_timestamp_is_independent_of_historical_market_dates(tmp_path):
+    # Historical holdout dates normally predate the wall-clock research run.
+    register_candidate_trial(
+        tmp_path / "trials.json",
+        trial_id="historical", candidate_name="historical",
+        strategy_definition={"lookback": 10},
+        dataset_fingerprint=FINGERPRINT, code_revision="abc123",
+        test_start=START, test_end=END,
+        registered_at="2026-11-18T00:00:00+00:00",
+    )
 
 
-def test_completion_before_holdout_end_is_rejected(tmp_path):
+def test_completion_cannot_predate_registration(tmp_path):
     path = tmp_path / "trials.json"
     register(path)
-    with pytest.raises(CandidateRegistryError, match="before its holdout window ends"):
+    with pytest.raises(CandidateRegistryError, match="predate its registration"):
         complete_candidate_trial(
             path, trial_id="trial-1", outcome={"return_pct": 1},
-            completed_at="2025-01-15T00:00:00+00:00",
+            completed_at="2024-11-15T00:00:00+00:00",
         )
