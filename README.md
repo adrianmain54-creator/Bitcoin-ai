@@ -134,3 +134,9 @@ The research-only `bitcoin_ai.market_anomaly.audit_ohlcv_anomalies` helper valid
 ### Market-regime intelligence (research-only)
 
 The `bitcoin_ai.market_regime_intelligence.classify_market_conditions` helper combines the causal trailing-close regime classifier with the OHLCV anomaly report and the two-/three-source candle audit. It emits descriptive trend/volatility labels and a research-only posture. Any OHLCV alert changes the posture to `abstain`; an unsuccessful, divergent, or too-short exchange audit is rejected. It requires completed-candle inputs and never creates orders or forecasts. Thresholds remain heuristics, and a clean cross-check cannot prove market-wide data integrity.
+
+
+
+### Regime robustness audit
+
+The research lab now emits `regime_robustness_audit` for every fixed candidate. It screens regime-conditioned OOS slices for underpowered samples and negative returns after doubled estimated costs, while retaining same-interval buy-and-hold comparisons. Underpowered regimes are explicitly unknown, not passes. The default 10-observation screen is a diagnostic heuristic, not a statistical sufficiency guarantee. The audit is report-only and has no promotion or execution effect; correlated observations, repeated testing, and unseen regimes remain limitations.

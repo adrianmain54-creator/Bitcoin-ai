@@ -18,6 +18,7 @@ from .backtesting import BacktestError, Bar, _metrics
 from .data_quality import audit_price_bars
 from .agents import run_agent_council
 from .regime import classify_regime
+from .regime_robustness import audit_regime_robustness
 from .promotion import (
     evaluate_paper_trial_eligibility,
     evaluate_strategy_abstention,
@@ -811,6 +812,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         },
         "data_quality_audit": data_quality_report,
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
+        "regime_robustness_audit": audit_regime_robustness(fixed_candidate_comparison),
         "fixed_candidate_oos_comparison": {
             "candidates": fixed_candidate_comparison,
             "observations_per_candidate": len(benchmark),
