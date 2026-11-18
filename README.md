@@ -95,3 +95,21 @@ complete_candidate_trial(
 ```
 
 Use `audit_candidate_family` to count all registered trials on the same dataset with overlapping test windows, including incomplete trials. This first iteration is a standalone API: it is **not yet wired automatically into the research-lab Holm gate**, so do not treat its output as proof that all historical experiments were registered. It cannot detect trials run outside the registry or prove a registration timestamp against an external trusted clock. Back up the ledger and use one writer at a time; concurrent writers are not supported.
+
+
+### Integrated candidate-registry workflow
+
+The research lab can now pre-register the full fixed candidate set before evaluating any OOS window, then attach each candidate's result after the holdout window has completed. The integrated promotion review fails closed unless the registry is complete and its candidate names/count exactly match the candidate family supplied to the run.
+
+Example:
+
+```bash
+bitcoin-ai research-lab \
+  --csv btc-daily.csv \
+  --experiment-ledger holdout-history.json \
+  --candidate-ledger candidate-trials.json \
+  --code-revision "$(git rev-parse HEAD)" \
+  --json
+```
+
+Both ledgers should be backed up and used by one process at a time. A repeated overlapping run on the same dataset is deliberately counted as additional trials and will block fresh-holdout eligibility. The registry's local timestamp is not a trusted external clock; this cannot prove experiments outside the tool were not run. Omitting `--candidate-ledger` leaves the research report diagnostic-only and blocks candidate-registry verification for paper-review eligibility. The code revision must identify the exact source used for the run.
