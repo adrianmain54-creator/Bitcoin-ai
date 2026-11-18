@@ -10,6 +10,7 @@ def candidate():
             "observed_excess_return_pct": 8.0,
             "excess_return_p05_pct": 1.0,
             "probability_positive_pct": 97.0,
+            "bootstrap_null_p_value": 0.001,
         },
         "metrics_at_2x_cost": {"total_return_pct": 3.0},
     }
