@@ -2,7 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from bitcoin_ai.forward_validation import evaluate_forward_paper_evidence
+from bitcoin_ai.forward_validation import (
+    GENESIS_HASH, evaluate_forward_paper_evidence, observation_digest,
+)
 
 
 def observations(count=3, days=8):
@@ -15,6 +17,11 @@ def observations(count=3, days=8):
             "price": 100.0 + index * 2,
             "equity": 1000.0 + index * 5,
         })
+    previous = GENESIS_HASH
+    for item in result:
+        item["previous_hash"] = previous
+        item["observation_hash"] = observation_digest(item)
+        previous = item["observation_hash"]
     return result
 
 
@@ -55,4 +62,19 @@ def test_forward_evidence_rejects_naive_timestamps():
     data = observations()
     data[0]["observed_at"] = "2026-01-01T00:00:00"
     with pytest.raises(ValueError, match="timezone-aware"):
+        evaluate_forward_paper_evidence(data)
+
+
+
+def test_forward_evidence_rejects_tampered_observation():
+    data = observations()
+    data[1]["equity"] += 1
+    with pytest.raises(ValueError, match="hash verification failed"):
+        evaluate_forward_paper_evidence(data)
+
+
+def test_forward_evidence_rejects_broken_chain_link():
+    data = observations()
+    data[1]["previous_hash"] = "f" * 64
+    with pytest.raises(ValueError, match="broken previous-hash link"):
         evaluate_forward_paper_evidence(data)
