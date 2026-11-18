@@ -206,7 +206,7 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                 supported.append(regime)
                 if excess > 0:
                     positive.append(regime)
-        concentrated = bool(supported) and len(positive) <= 1
+        concentrated = len(supported) >= 2 and len(positive) <= 1
         regime_diagnostics[name] = {
             "available": True,
             "adequately_sampled_regimes": supported,
