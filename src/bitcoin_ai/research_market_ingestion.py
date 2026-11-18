@@ -141,8 +141,12 @@ class PublicResearchMarketIngestor:
             if stamp + granularity <= now.timestamp():
                 # Coinbase order: time, low, high, open, close, volume.
                 bars.append(self._bar(stamp, row[3], row[2], row[1], row[4], row[5]))
-        bars.sort(key=lambda bar: bar["timestamp"])
-        return bars[-limit:]
+        # Coinbase documents newest-first candle ordering. Verify that contract
+        # before reversing; do not sort arbitrary malformed source data.
+        stamps = [bar["timestamp"] for bar in bars]
+        if any(stamps[index] <= stamps[index + 1] for index in range(len(stamps) - 1)):
+            raise ResearchMarketFetchError("Coinbase candles are not in documented newest-first order")
+        return list(reversed(bars))[-limit:]
 
     def fetch_and_prepare(
         self, *, interval: str = "5m", limit: int = 100,
@@ -150,8 +154,9 @@ class PublicResearchMarketIngestor:
         max_price_deviation: float = 0.01, min_sources: int = 3,
     ) -> dict:
         """Fetch three venues, then pass untouched OHLCV to strict ingestion."""
-        if interval not in self.BINANCE_INTERVALS:
-            raise ValueError("unsupported Binance interval")
+        supported_by_all = self.BINANCE_INTERVALS & set(self.KRAKEN_INTERVALS) & set(self.COINBASE_INTERVALS)
+        if interval not in supported_by_all:
+            raise ValueError("interval is not supported by all three research data providers")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 20 <= limit <= 300:
             raise ValueError("limit must be an integer from 20 to 300")
         current = now or datetime.now(timezone.utc)
