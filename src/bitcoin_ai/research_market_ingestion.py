@@ -124,9 +124,11 @@ class PublicResearchMarketIngestor:
         if interval not in self.COINBASE_INTERVALS:
             raise ResearchMarketFetchError(f"Coinbase does not support {interval}")
         granularity = self.COINBASE_INTERVALS[interval]
-        end = int(now.timestamp())
-        start = end - (limit + 2) * granularity
-        url = f"{self.COINBASE_URL}?granularity={granularity}&start={start}&end={end}"
+        end = now.astimezone(timezone.utc)
+        start = end.timestamp() - (limit + 2) * granularity
+        start_text = datetime.fromtimestamp(start, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_text = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+        url = f"{self.COINBASE_URL}?granularity={granularity}&start={start_text}&end={end_text}"
         rows = self._get_json(url)
         if not isinstance(rows, list):
             raise ResearchMarketFetchError("unexpected Coinbase response")
