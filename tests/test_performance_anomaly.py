@@ -54,3 +54,19 @@ def test_rejects_invalid_window_configuration():
         evaluate_performance_anomalies([], baseline_window=2, min_baseline=3)
     with pytest.raises(ValueError, match="finite and positive"):
         evaluate_performance_anomalies([], mad_threshold=float("inf"))
+
+
+def test_withholds_anomaly_verdict_when_observation_cadence_has_a_gap():
+    data = sample_observations(-0.02)
+    for item in data[12:]:
+        stamp = datetime.fromisoformat(item["observed_at"]) + timedelta(minutes=20)
+        item["observed_at"] = stamp.isoformat()
+    report = evaluate_performance_anomalies(data)
+    assert report["status"] == "unreliable_cadence"
+    assert report["cadence_gaps"]
+    assert report["anomalies"] == []
+
+
+def test_rejects_invalid_cadence_gap_multiple():
+    with pytest.raises(ValueError, match="greater than 1"):
+        evaluate_performance_anomalies([], max_gap_multiple=1)
