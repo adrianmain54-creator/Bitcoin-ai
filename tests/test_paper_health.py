@@ -113,7 +113,7 @@ def test_strategy_degradation_requires_review_in_health_report(tmp_path):
         item["observation_hash"] = observation_digest(item)
         observations.append(item)
     account = PaperAccount(paper_observations=observations)
-    risk = new_risk_state(1000.0, NOW)
+    risk = new_risk_state(max(item["equity"] for item in observations), NOW)
     PaperStateStore(path).save(account, risk)
     report = build_paper_health_report(path, now=NOW, max_age_seconds=3600)
     assert report["performance_anomalies"]["status"] == "anomaly_detected"
