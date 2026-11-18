@@ -11,6 +11,7 @@ import random
 from statistics import mean, pstdev
 
 from .backtesting import BacktestError, Bar, _metrics
+from .data_quality import audit_price_bars
 from .agents import run_agent_council
 from .regime import classify_regime
 from .promotion import evaluate_paper_trial_eligibility, evaluate_strategy_abstention
@@ -342,9 +343,18 @@ def _selection_score(returns, metrics, regime_labels=None, *,
 def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                      candidates=None, step_bars=None, fee_bps=10.0,
                      slippage_bps=5.0, periods_per_year=365.0,
-                     bootstrap_trials=500, seed=7):
-    """Compare trend, breakout and volatility-targeted candidates using rolling OOS folds."""
+                     bootstrap_trials=500, seed=7,
+                     expected_interval_seconds=None):
+    """Compare candidates using rolling OOS folds after auditing source data."""
     candidates = DEFAULT_CANDIDATES if candidates is None else candidates
+    data_quality_report = audit_price_bars(
+        bars, expected_interval_seconds=expected_interval_seconds,
+    )
+    if not data_quality_report["usable"]:
+        raise BacktestError(
+            "Historical data quality audit failed: "
+            + "; ".join(data_quality_report["errors"])
+        )
     normalized = _validate(bars, train_bars, test_bars, candidates, fee_bps, slippage_bps)
     step = test_bars if step_bars is None else step_bars
     if isinstance(step, bool) or not isinstance(step, int) or step < test_bars:
@@ -647,6 +657,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             ),
         }
     report = {
+        "data_quality_audit": data_quality_report,
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
         "fixed_candidate_oos_comparison": {
             "candidates": fixed_candidate_comparison,
