@@ -49,17 +49,40 @@ def classify_market_conditions(
     divergent = exchange_audit.get("divergent_candles")
     if status not in {"cross_checked", "three_source_cross_checked"}:
         raise MarketRegimeIntelligenceError("exchange audit is not a recognized successful cross-check")
-    if (not isinstance(sources, list) or len(sources) < 2\n            or any(not isinstance(source, str) or not source for source in sources)\n            or len(set(sources)) != len(sources)):
+    if (
+        not isinstance(sources, list)
+        or len(sources) < 2
+        or any(not isinstance(source, str) or not source for source in sources)
+        or len(set(sources)) != len(sources)
+    ):
         raise MarketRegimeIntelligenceError("exchange audit must identify at least two unique sources")
-    if (isinstance(aligned, bool) or not isinstance(aligned, int)
-            or aligned < minimum_aligned_candles):
+    if (
+        isinstance(aligned, bool)
+        or not isinstance(aligned, int)
+        or aligned < minimum_aligned_candles
+    ):
         raise MarketRegimeIntelligenceError("exchange audit has insufficient aligned candles")
     if status == "three_source_cross_checked" and len(sources) < 3:
         raise MarketRegimeIntelligenceError("three-source audit must identify three sources")
-    if divergent not in (0, None) and not (
-        isinstance(divergent, dict) and all(value == 0 for value in divergent.values())
-    ):
-        raise MarketRegimeIntelligenceError("exchange audit reports divergent candles")
+    if status == "cross_checked":
+        divergence_is_clean = (
+            isinstance(divergent, int)
+            and not isinstance(divergent, bool)
+            and divergent == 0
+        )
+    else:
+        divergence_is_clean = (
+            isinstance(divergent, dict)
+            and len(divergent) == 3
+            and all(
+                isinstance(value, int) and not isinstance(value, bool) and value == 0
+                for value in divergent.values()
+            )
+        )
+    if not divergence_is_clean:
+        raise MarketRegimeIntelligenceError(
+            "exchange audit reports divergence or omits divergence counts"
+        )
 
     anomaly_status = anomaly_report.get("status")
     alerts = anomaly_report.get("alerts")
