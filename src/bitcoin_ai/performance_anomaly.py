@@ -43,20 +43,19 @@ def evaluate_performance_anomalies(observations, *, baseline_window=30,
         if previous_time is not None and current_time <= previous_time:
             raise ValueError("observation timestamps must be strictly increasing")
         values = []
-        for field in ("equity", "price", "baseline_equity"):
+        for field in ("equity", "price"):
             value = item.get(field)
             if (isinstance(value, bool) or not isinstance(value, (int, float))
                     or not math.isfinite(value) or value <= 0):
                 raise ValueError(f"observation {index} {field} must be finite and positive")
             values.append(float(value))
-        equity, price, baseline_equity = values
+        equity, price = values
         if previous_equity is not None:
             strategy_return = equity / previous_equity - 1.0
             market_return = price / previous_price - 1.0
             paired_edges.append(strategy_return - market_return)
         previous_time = current_time
         previous_equity, previous_price = equity, price
-        previous_baseline = baseline_equity
 
     required = baseline_window + recent_window
     if len(paired_edges) < required:
