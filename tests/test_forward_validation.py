@@ -89,3 +89,32 @@ def test_forward_evidence_rejects_broken_chain_link():
     data[1]["previous_hash"] = "f" * 64
     with pytest.raises(ValueError, match="broken previous-hash link"):
         evaluate_forward_paper_evidence(data)
+
+
+def test_forward_evidence_flags_large_gaps_in_observation_cadence():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    offsets = [0, 1, 2, 20, 21]
+    data = []
+    for index, day in enumerate(offsets):
+        data.append({
+            "observed_at": (start + timedelta(days=day)).isoformat(),
+            "price": 100.0 + index,
+            "equity": 1000.0 + index,
+        })
+    resign(data)
+
+    result = evaluate_forward_paper_evidence(
+        data, min_observations=5, min_days=7,
+    )
+    assert result["cadence_status"] == "gaps_detected"
+    assert len(result["suspicious_gaps"]) == 1
+    assert result["suspicious_gaps"][0]["gap_seconds"] == 18 * 86400
+    assert result["status"] == "insufficient_evidence"
+
+
+def test_forward_evidence_needs_enough_intervals_to_audit_cadence():
+    result = evaluate_forward_paper_evidence(
+        observations(2, 8), min_observations=2, min_days=7,
+    )
+    assert result["cadence_status"] == "not_enough_intervals"
+    assert result["status"] == "insufficient_evidence"
