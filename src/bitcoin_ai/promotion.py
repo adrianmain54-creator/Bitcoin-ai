@@ -190,6 +190,9 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                 for item in registered_trials:
                     name = item.get("candidate_name")
                     recorded = item.get("outcome")
+                    if not isinstance(name, str):
+                        registry_outcomes_match = False
+                        break
                     candidate = candidates.get(name)
                     uncertainty = (
                         candidate.get("paired_edge_uncertainty")
