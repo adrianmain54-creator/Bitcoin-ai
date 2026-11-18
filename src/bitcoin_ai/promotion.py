@@ -141,6 +141,7 @@ def evaluate_strategy_abstention(candidates, *, min_observations=180,
 
 
 def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
+                                            holdout_reuse_audit=None,
                                             min_observations=180,
                                             min_probability_positive_pct=95.0):
     """Run deterministic proposer, skeptic, and evidence-review roles.
@@ -153,6 +154,18 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         raise ValueError("candidates must be a dictionary")
     if not isinstance(data_quality_audit, dict):
         raise ValueError("data_quality_audit must be a dictionary")
+
+    # A statistically clean-looking backtest is not fresh evidence if its
+    # holdout has been reused, or if no durable prior-experiment ledger was
+    # supplied. Fail closed before any candidate can become paper-review eligible.
+    holdout_status = (
+        holdout_reuse_audit.get("status")
+        if isinstance(holdout_reuse_audit, dict) else None
+    )
+    holdout_fresh = (
+        holdout_status == "no_overlap_detected"
+        and holdout_reuse_audit.get("eligible_for_fresh_holdout_review") is True
+    ) if isinstance(holdout_reuse_audit, dict) else None
 
     # Proposer: enumerate the fixed candidates already defined before OOS scoring.
     proposed = sorted(candidates)
@@ -187,6 +200,13 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         evidence_errors.append("one or more proposed candidates lack skeptic review")
     if not proposed:
         evidence_errors.append("no fixed candidates were proposed")
+    if holdout_reuse_audit is not None and not holdout_fresh:
+        if holdout_status == "reuse_detected":
+            evidence_errors.append("held-out intervals overlap prior or same-run experiments")
+        elif holdout_status == "no_prior_ledger_supplied":
+            evidence_errors.append("no prior holdout ledger was supplied; freshness is unverified")
+        else:
+            evidence_errors.append("fresh holdout audit is invalid or not eligible")
 
     # Regime slices are descriptive evidence, not tuning inputs. If a candidate
     # has regime results but positive excess is confined to one adequately
@@ -323,6 +343,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         "evidence_reviewer": {
             "data_quality_status": audit_status,
             "data_quality_usable": audit_usable,
+            "holdout_reuse_status": holdout_status,
+            "holdout_freshness_verified": holdout_fresh,
             "errors": evidence_errors,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),
