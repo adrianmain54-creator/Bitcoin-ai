@@ -118,3 +118,8 @@ Both ledgers should be backed up and used by one process at a time. A repeated o
 ### Cross-source market-data integrity
 
 The paper service requires both Binance and Kraken. The cross-check now compares the full overlapping tail of completed candles, not only the final price. Both histories must be fresh, contiguous, and aligned; at least 20 overlapping candles are required by default. A divergence beyond the configured tolerance in even one overlapping close blocks the paper cycle before account state is changed. The report exposes aligned-candle count and maximum/mean deviation. Agreement between two exchanges is a consistency check, not proof against coordinated manipulation, shared upstream errors, or incorrect market-wide prices.
+
+
+### Three-source paper market-data verification
+
+The paper service now requires aligned completed BTC-USDT candle histories from Binance, Kraken, and Coinbase. Each source must be fresh and contiguous, and every overlapping candle is compared pairwise against the configured deviation tolerance. An unavailable, stale, unsupported, or divergent Coinbase feed stops the paper cycle; the service does not silently downgrade to two sources. Coinbase's public BTC-USDT product availability and API limits may vary, so this check can make paper cycles unavailable when that venue cannot provide the requested interval. Three-venue agreement is still not proof against shared upstream errors, coordinated manipulation, or market-wide price distortion. Simulation only; no live exchange orders.
