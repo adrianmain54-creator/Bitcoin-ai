@@ -677,7 +677,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     holdout_ledger_records = []
     for fold_index, fold in enumerate(folds):
         proposed = {
-            "experiment_id": f"research-fold-{fold_index + 1}",
+            "experiment_id": f"{experiment_run_id}:fold-{fold_index + 1}",
             "dataset_fingerprint": dataset_fingerprint,
             "test_start": fold["test_start"],
             "test_end": fold["test_end"],
