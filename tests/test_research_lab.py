@@ -362,3 +362,42 @@ def test_risk_capped_agent_council_rejects_insufficient_warmup():
             candidates=[{"family": "agent_council_50", "lookback": 20}],
             bootstrap_trials=100,
         )
+
+
+def test_fixed_candidate_comparison_reports_paired_regime_attribution():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "momentum", "lookback": 8},
+            {"family": "cash", "lookback": 2},
+        ],
+        bootstrap_trials=100,
+    )
+    comparison = result["fixed_candidate_oos_comparison"]
+    for candidate in comparison["candidates"].values():
+        assert set(candidate["regime_attribution"]) == {
+            "uptrend", "downtrend", "range", "high_volatility"
+        }
+        assert sum(
+            regime["observations"]
+            for regime in candidate["regime_attribution"].values()
+        ) == comparison["observations_per_candidate"]
+        for regime in candidate["regime_attribution"].values():
+            assert "excess_return_vs_buy_and_hold_pct_points" in regime
+            assert "strategy_return_at_2x_cost_pct" in regime
+            assert (
+                regime["positive_bar_share_pct"] is None
+                or 0.0 <= regime["positive_bar_share_pct"] <= 100.0
+            )
+
+
+def test_cash_candidate_has_zero_return_in_every_regime():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "cash", "lookback": 2}],
+        bootstrap_trials=100,
+    )
+    candidate = result["fixed_candidate_oos_comparison"]["candidates"]["cash:2"]
+    for regime in candidate["regime_attribution"].values():
+        assert regime["strategy_return_pct"] == 0.0
+        assert regime["strategy_return_at_2x_cost_pct"] == 0.0
