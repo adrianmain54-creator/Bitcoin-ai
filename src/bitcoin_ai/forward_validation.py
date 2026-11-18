@@ -6,7 +6,37 @@ chronologically ordered paper observations exist for a human review.
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
+import json
 import math
+
+GENESIS_HASH = "0" * 64
+
+
+def observation_digest(observation):
+    """Hash an observation's canonical contents, excluding its own digest."""
+    payload = {key: value for key, value in observation.items()
+               if key != "observation_hash"}
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                         allow_nan=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def verify_observation_chain(observations):
+    previous = GENESIS_HASH
+    for index, item in enumerate(observations):
+        if not isinstance(item, dict):
+            raise ValueError(f"observation {index} must be an object")
+        if item.get("previous_hash") != previous:
+            raise ValueError(f"observation {index} has a broken previous-hash link")
+        try:
+            actual = observation_digest(item)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"observation {index} cannot be hashed") from exc
+        if item.get("observation_hash") != actual:
+            raise ValueError(f"observation {index} hash verification failed")
+        previous = actual
+    return True
 
 
 def evaluate_forward_paper_evidence(observations, *, min_observations=100,
@@ -20,6 +50,7 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
             or not math.isfinite(min_days) or min_days < 0):
         raise ValueError("min_days must be a finite non-negative number")
 
+    verify_observation_chain(observations)
     parsed = []
     for index, item in enumerate(observations):
         if not isinstance(item, dict):
