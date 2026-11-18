@@ -6,6 +6,7 @@ import math
 
 from .forward_validation import evaluate_forward_paper_evidence, verify_observation_chain
 from .performance_anomaly import evaluate_performance_anomalies
+from .drawdown_monitor import summarize_drawdown
 from .state_store import PaperStateStore, StateStoreError
 
 
@@ -55,6 +56,7 @@ def build_paper_health_report(state_path, *, now=None, max_age_seconds=180.0):
         "forward_evidence_status": evidence["status"],
         "risk_halted": risk.halted,
         "performance_anomalies": evaluate_performance_anomalies(observations),
+        "drawdown": summarize_drawdown(observations),
     }
     if risk.halted:
         return {
