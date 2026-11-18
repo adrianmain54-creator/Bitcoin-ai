@@ -81,7 +81,7 @@ def classify_market_conditions(
         )
     if not divergence_is_clean:
         raise MarketRegimeIntelligenceError(
-            "exchange audit reports divergence or omits divergence counts"
+            "exchange audit reports divergent candles or omits divergence counts"
         )
 
     anomaly_status = anomaly_report.get("status")
