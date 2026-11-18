@@ -118,3 +118,20 @@ def test_forward_evidence_needs_enough_intervals_to_audit_cadence():
     )
     assert result["cadence_status"] == "not_enough_intervals"
     assert result["status"] == "insufficient_evidence"
+
+
+def test_forward_evidence_detects_gap_with_only_two_intervals():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    data = []
+    for index, minute in enumerate((0, 1, 11)):
+        data.append({
+            "observed_at": (start + timedelta(minutes=minute)).isoformat(),
+            "price": 100.0 + index,
+            "equity": 1000.0 + index,
+        })
+    resign(data)
+    result = evaluate_forward_paper_evidence(
+        data, min_observations=3, min_days=0,
+    )
+    assert result["cadence_status"] == "gaps_detected"
+    assert len(result["suspicious_gaps"]) == 1

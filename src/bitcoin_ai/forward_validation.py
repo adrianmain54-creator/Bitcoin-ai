@@ -89,10 +89,14 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
             ordered_intervals[middle] if len(ordered_intervals) % 2
             else (ordered_intervals[middle - 1] + ordered_intervals[middle]) / 2
         )
+        # With only two intervals, their median is their midpoint and can hide
+        # one extreme gap. Use the shorter interval as the conservative cadence
+        # reference until a larger sample makes the median robust.
+        cadence_reference = min(intervals) if len(intervals) == 2 else median_interval
         cadence_gaps = [
             {"after_observation": index, "gap_seconds": round(seconds, 3)}
             for index, seconds in enumerate(intervals)
-            if seconds > 3 * median_interval
+            if seconds > 3 * cadence_reference
         ]
     cadence_known = len(intervals) >= 2
     sufficient = (
