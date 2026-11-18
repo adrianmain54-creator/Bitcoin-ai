@@ -136,15 +136,17 @@ class BinanceCandleClient:
                     f"(Binance: {binance_error}; Kraken: {kraken_error})"
                 ) from kraken_error
 
-    def cross_checked_completed_closes(
+    def cross_checked_candle_history(
         self, *, interval: str = "5m", limit: int = 100,
         now: datetime | None = None, max_price_deviation: float = 0.01,
-    ) -> tuple[list[float], datetime]:
-        """Return Binance closes only when a fresh, aligned Kraken feed agrees.
+        min_overlap: int = 20,
+    ) -> dict:
+        """Return Binance history only when the aligned Kraken history agrees.
 
-        Unlike completed_closes(), this method requires both exchanges. It fails
-        closed if either source is unavailable, candle timestamps do not align,
-        or the latest close prices differ beyond max_price_deviation.
+        Both feeds must be fresh, contiguous, and aligned at the latest candle.
+        Since each source validates fixed cadence, their tails can then be
+        aligned by timestamp. Every overlapping close is compared; a matching
+        final price cannot hide a divergent earlier candle.
         """
         if interval not in self.INTERVAL_MINUTES:
             raise ValueError("unsupported candle interval")
@@ -155,6 +157,8 @@ class BinanceCandleClient:
                 or not math.isfinite(max_price_deviation)
                 or not 0 < max_price_deviation < 1):
             raise ValueError("max_price_deviation must be a finite fraction between 0 and 1")
+        if isinstance(min_overlap, bool) or not isinstance(min_overlap, int) or min_overlap < 2:
+            raise ValueError("min_overlap must be an integer >= 2")
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None or current.utcoffset() is None:
             raise ValueError("now must be timezone-aware")
@@ -176,12 +180,57 @@ class BinanceCandleClient:
         if abs((binance_latest - kraken_latest).total_seconds()) > 2:
             raise MarketDataError("Binance and Kraken latest candle timestamps do not align")
 
-        binance_price, kraken_price = binance_closes[-1], kraken_closes[-1]
-        midpoint = (binance_price + kraken_price) / 2
-        deviation = abs(binance_price - kraken_price) / midpoint
-        if deviation > max_price_deviation:
+        overlap = min(len(binance_closes), len(kraken_closes))
+        if overlap < min_overlap:
             raise MarketDataError(
-                f"Binance/Kraken price divergence {deviation:.4%} exceeds "
+                f"Insufficient cross-source history: {overlap} aligned candles; "
+                f"at least {min_overlap} required"
+            )
+        left = binance_closes[-overlap:]
+        right = kraken_closes[-overlap:]
+        deviations = [
+            abs(a - b) / ((a + b) / 2.0)
+            for a, b in zip(left, right)
+        ]
+        max_deviation = max(deviations)
+        mean_deviation = sum(deviations) / len(deviations)
+        divergent_count = sum(value > max_price_deviation for value in deviations)
+        if divergent_count:
+            raise MarketDataError(
+                f"Binance/Kraken history contains {divergent_count} divergent "
+                f"candles; maximum deviation {max_deviation:.4%} exceeds "
                 f"the allowed {max_price_deviation:.4%}"
             )
-        return binance_closes, binance_latest
+
+        return {
+            "closes": binance_closes,
+            "latest": binance_latest,
+            "audit": {
+                "status": "cross_checked",
+                "sources": ["binance", "kraken"],
+                "interval": interval,
+                "aligned_candles": overlap,
+                "max_price_deviation": max_deviation,
+                "mean_price_deviation": mean_deviation,
+                "max_allowed_deviation": max_price_deviation,
+                "divergent_candles": 0,
+                "interpretation": (
+                    "All overlapping close prices agreed within the configured "
+                    "tolerance. This is a consistency check, not proof that either "
+                    "exchange or the shared market is manipulation-free."
+                ),
+            },
+        }
+
+    def cross_checked_completed_closes(
+        self, *, interval: str = "5m", limit: int = 100,
+        now: datetime | None = None, max_price_deviation: float = 0.01,
+        min_overlap: int = 20,
+    ) -> tuple[list[float], datetime]:
+        """Backward-compatible tuple API backed by full-history comparison."""
+        result = self.cross_checked_candle_history(
+            interval=interval, limit=limit, now=now,
+            max_price_deviation=max_price_deviation,
+            min_overlap=min_overlap,
+        )
+        return result["closes"], result["latest"]
