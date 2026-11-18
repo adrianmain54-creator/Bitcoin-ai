@@ -452,3 +452,91 @@ def test_fixed_candidate_report_includes_deterministic_edge_uncertainty():
         assert uncertainty["observations"] == first["out_of_sample_returns"]
         assert uncertainty == second["fixed_candidate_oos_comparison"]["candidates"][key]["paired_edge_uncertainty"]
         assert 0.0 <= uncertainty["probability_positive_pct"] <= 100.0
+
+
+def test_strategy_abstention_gate_requires_all_conservative_conditions():
+    from bitcoin_ai.promotion import evaluate_strategy_abstention
+
+    passing = {
+        "paired_edge_uncertainty": {
+            "observations": 240,
+            "observed_excess_return_pct": 8.0,
+            "excess_return_p05_pct": 1.0,
+            "probability_positive_pct": 97.0,
+        },
+        "metrics_at_2x_cost": {"total_return_pct": 3.0},
+    }
+    result = evaluate_strategy_abstention({"candidate-a": passing})
+    assert result["action"] == "manual_review_required"
+    assert result["passing_candidates"] == ["candidate-a"]
+
+    weak = {
+        "paired_edge_uncertainty": {
+            "observations": 240,
+            "observed_excess_return_pct": 8.0,
+            "excess_return_p05_pct": -1.0,
+            "probability_positive_pct": 97.0,
+        },
+        "metrics_at_2x_cost": {"total_return_pct": 3.0},
+    }
+    result = evaluate_strategy_abstention({"weak": weak})
+    assert result["action"] == "abstain_cash"
+    assert "paired edge fifth percentile is not positive" in result["candidate_assessments"]["weak"]["reasons"]
+
+
+@pytest.mark.parametrize("change", [
+    {"observations": 100},
+    {"probability_positive_pct": 80.0},
+    {"observed_excess_return_pct": -0.1},
+    {"excess_return_p05_pct": 0.0},
+])
+def test_strategy_abstention_gate_fails_closed_on_weak_evidence(change):
+    from bitcoin_ai.promotion import evaluate_strategy_abstention
+
+    uncertainty = {
+        "observations": 240,
+        "observed_excess_return_pct": 4.0,
+        "excess_return_p05_pct": 0.5,
+        "probability_positive_pct": 98.0,
+    }
+    uncertainty.update(change)
+    candidate = {
+        "paired_edge_uncertainty": uncertainty,
+        "metrics_at_2x_cost": {"total_return_pct": 1.0},
+    }
+    result = evaluate_strategy_abstention({"candidate": candidate})
+    assert result["action"] == "abstain_cash"
+    assert not result["candidate_assessments"]["candidate"]["eligible_for_review"]
+
+
+def test_strategy_abstention_gate_rejects_candidate_erased_by_costs():
+    from bitcoin_ai.promotion import evaluate_strategy_abstention
+
+    candidate = {
+        "paired_edge_uncertainty": {
+            "observations": 240,
+            "observed_excess_return_pct": 4.0,
+            "excess_return_p05_pct": 0.5,
+            "probability_positive_pct": 98.0,
+        },
+        "metrics_at_2x_cost": {"total_return_pct": -0.01},
+    }
+    result = evaluate_strategy_abstention({"candidate": candidate})
+    assert result["action"] == "abstain_cash"
+    assert "candidate return is not positive at 2x estimated costs" in result["candidate_assessments"]["candidate"]["reasons"]
+
+
+def test_research_report_includes_report_only_abstention_gate():
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[
+            {"family": "momentum", "lookback": 8},
+            {"family": "cash", "lookback": 2},
+        ],
+        bootstrap_trials=100,
+    )
+    gate = result["strategy_abstention_gate"]
+    assert gate["action"] in {"abstain_cash", "manual_review_required"}
+    assert "momentum:8" in gate["candidate_assessments"]
+    assert gate["candidate_assessments"]["cash:2"]["eligible_for_review"] is False
+    assert "Report-only" in gate["scope"]
