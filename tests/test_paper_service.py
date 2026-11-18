@@ -15,7 +15,11 @@ class FakeClient:
     def __init__(self, closes=None, observed_at=NOW):
         self.closes = closes or [100.0 + i for i in range(100)]
         self.observed_at = observed_at
+        self.cross_check_calls = 0
     def completed_closes(self, **kwargs):
+        raise AssertionError("paper trading must not use a single exchange feed")
+    def cross_checked_completed_closes(self, **kwargs):
+        self.cross_check_calls += 1
         return self.closes, self.observed_at
 
 
@@ -25,6 +29,7 @@ def test_first_cycle_initializes_then_persists_state(tmp_path):
                            clock=lambda: NOW)
     report = service.run_once()
     assert report["mode"] == "paper"
+    assert service.client.cross_check_calls == 1
     assert path.exists()
     before = json.loads(path.read_text())
     service.run_once()
@@ -43,8 +48,8 @@ def test_corrupt_state_is_not_silently_reset(tmp_path):
 
 def test_market_data_failure_does_not_create_account_state(tmp_path):
     class BrokenClient:
-        def completed_closes(self, **kwargs):
-            raise MarketDataError("offline")
+        def cross_checked_completed_closes(self, **kwargs):
+            raise MarketDataError("one exchange offline; cross-check unavailable")
     path = tmp_path / "paper.json"
     service = PaperService(state_path=str(path), client=BrokenClient(),
                            clock=lambda: NOW)

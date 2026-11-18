@@ -77,3 +77,70 @@ def test_three_minute_fallback_never_substitutes_five_minute_candles():
     with pytest.raises(MarketDataError, match="does not support 3m"):
         client.completed_closes(interval="3m", now=NOW)
     assert calls == 1
+
+
+def test_missing_candle_interval_is_rejected():
+    base_ms = int(NOW.timestamp() * 1000) - 900_000
+    rows = [
+        candle(base_ms, 100, base_ms + 299_999),
+        candle(base_ms + 600_000, 102, base_ms + 899_999),
+    ]
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
+    with pytest.raises(MarketDataError, match="missing interval"):
+        client.completed_closes(now=NOW)
+
+
+def test_stale_latest_candle_is_rejected():
+    base_ms = int(NOW.timestamp() * 1000) - 3_600_000
+    rows = [
+        candle(base_ms, 100, base_ms + 299_999),
+        candle(base_ms + 300_000, 101, base_ms + 599_999),
+    ]
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
+    with pytest.raises(MarketDataError, match="stale"):
+        client.completed_closes(now=NOW)
+
+
+def cross_check_payloads(binance_latest=100, kraken_latest=100):
+    base_ms = int(NOW.timestamp() * 1000) - 600_000
+    binance_rows = [
+        candle(base_ms, 99, base_ms + 299_999),
+        candle(base_ms + 300_000, binance_latest, base_ms + 599_999),
+    ]
+    base_ts = int(NOW.timestamp()) - 600
+    kraken_rows = [
+        [base_ts, "1", "1", "1", "99", "1", "1", 1],
+        [base_ts + 300, "1", "1", "1", str(kraken_latest), "1", "1", 1],
+    ]
+    return binance_rows, {"error": [], "result": {"XXBTZUSDT": kraken_rows, "last": 1}}
+
+
+def test_cross_check_accepts_aligned_exchange_prices():
+    binance_rows, kraken_payload = cross_check_payloads(100, 100.4)
+    payloads = iter([binance_rows, kraken_payload])
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
+    closes, observed = client.cross_checked_completed_closes(now=NOW)
+    assert closes == [99.0, 100.0]
+    assert observed == datetime.fromtimestamp(((int(NOW.timestamp()) * 1000) - 1) / 1000, timezone.utc)
+
+
+def test_cross_check_rejects_divergent_exchange_prices():
+    binance_rows, kraken_payload = cross_check_payloads(100, 103)
+    payloads = iter([binance_rows, kraken_payload])
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
+    with pytest.raises(MarketDataError, match="price divergence"):
+        client.cross_checked_completed_closes(now=NOW)
+
+
+def test_cross_check_fails_closed_if_one_exchange_is_unavailable():
+    binance_rows, _ = cross_check_payloads()
+    calls = 0
+    def opener(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return Response(binance_rows)
+        raise HTTPError(args[0].full_url, 451, "Unavailable", {}, None)
+    client = BinanceCandleClient(opener=opener)
+    with pytest.raises(MarketDataError, match="requires Kraken"):
+        client.cross_checked_completed_closes(now=NOW)
