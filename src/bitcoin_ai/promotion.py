@@ -142,6 +142,7 @@ def evaluate_strategy_abstention(candidates, *, min_observations=180,
 
 def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                                             holdout_reuse_audit=None,
+                                            candidate_family_audit=None,
                                             min_observations=180,
                                             min_probability_positive_pct=95.0):
     """Run deterministic proposer, skeptic, and evidence-review roles.
@@ -169,6 +170,28 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
 
     # Proposer: enumerate the fixed candidates already defined before OOS scoring.
     proposed = sorted(candidates)
+    registry_verified = None
+    registry_errors = []
+    if candidate_family_audit is not None:
+        if not isinstance(candidate_family_audit, dict):
+            registry_errors.append("candidate registry audit is malformed")
+        else:
+            registry_verified = (
+                candidate_family_audit.get("status") == "complete"
+                and candidate_family_audit.get("candidate_count") == len(proposed)
+                and sorted(
+                    item.get("candidate_name")
+                    for item in candidate_family_audit.get("registered_trials", [])
+                    if isinstance(item, dict)
+                ) == proposed
+                and not candidate_family_audit.get("incomplete_trials")
+            )
+            if not registry_verified:
+                registry_errors.append(
+                    "candidate registry is incomplete or does not exactly match the proposed candidate family"
+                )
+    else:
+        registry_errors.append("durable candidate registry was not supplied; experiment-family completeness is unverified")
     if any(not isinstance(name, str) or not name.strip() for name in proposed):
         raise ValueError("candidate names must be non-empty strings")
     # Holm's step-down family-wise error procedure operates on explicit
@@ -233,6 +256,7 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
         evidence_errors.append("one or more proposed candidates lack skeptic review")
     if not proposed:
         evidence_errors.append("no fixed candidates were proposed")
+    evidence_errors.extend(registry_errors)
     if holdout_reuse_audit is not None and not holdout_fresh:
         if holdout_status == "reuse_detected":
             evidence_errors.append("held-out intervals overlap prior or same-run experiments")
@@ -378,6 +402,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "data_quality_usable": audit_usable,
             "holdout_reuse_status": holdout_status,
             "holdout_freshness_verified": holdout_fresh,
+            "candidate_registry_verified": registry_verified,
+            "candidate_registry_audit": candidate_family_audit,
             "errors": evidence_errors,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),
