@@ -151,6 +151,8 @@ def test_nearby_parameter_variant_erasing_edge_requires_review():
         "observations": 240,
         "excess_return_vs_buy_and_hold_pct_points": -0.4,
     })
+    strong["paired_edge_uncertainty"]["probability_positive_pct"] = 99.0
+    nearby["paired_edge_uncertainty"]["probability_positive_pct"] = 99.0
     result = evaluate_independent_strategy_validation(
         {"momentum:10": strong, "momentum:12": nearby},
         {"usable": True, "status": "pass"},
