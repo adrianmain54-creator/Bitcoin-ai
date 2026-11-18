@@ -183,6 +183,35 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                    and all(isinstance(item, dict) for item in registered_trials)
                 else []
             )
+            registry_outcomes_match = True
+            if len(registered_trials) != len(proposed):
+                registry_outcomes_match = False
+            else:
+                for item in registered_trials:
+                    name = item.get("candidate_name")
+                    recorded = item.get("outcome")
+                    candidate = candidates.get(name)
+                    uncertainty = (
+                        candidate.get("paired_edge_uncertainty")
+                        if isinstance(candidate, dict) else None
+                    )
+                    if not isinstance(recorded, dict) or not isinstance(uncertainty, dict):
+                        registry_outcomes_match = False
+                        break
+                    recorded_p = recorded.get("bootstrap_null_p_value")
+                    current_p = uncertainty.get("bootstrap_null_p_value")
+                    if (
+                        not isinstance(recorded_p, (int, float))
+                        or isinstance(recorded_p, bool)
+                        or not isinstance(current_p, (int, float))
+                        or isinstance(current_p, bool)
+                        or not math.isfinite(recorded_p)
+                        or not math.isfinite(current_p)
+                        or not math.isclose(recorded_p, current_p, rel_tol=0.0, abs_tol=1e-12)
+                        or recorded.get("observations") != uncertainty.get("observations")
+                    ):
+                        registry_outcomes_match = False
+                        break
             registry_verified = (
                 candidate_family_audit.get("status") == "complete"
                 and candidate_family_audit.get("candidate_count") == len(proposed)
@@ -190,10 +219,11 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
                 and all(isinstance(name, str) for name in registered_names)
                 and sorted(registered_names) == proposed
                 and not candidate_family_audit.get("incomplete_trials")
+                and registry_outcomes_match
             )
             if not registry_verified:
                 registry_errors.append(
-                    "candidate registry is incomplete or does not exactly match the proposed candidate family"
+                    "candidate registry is incomplete, mismatched, or does not contain the exact recorded p-value evidence"
                 )
     if any(not isinstance(name, str) or not name.strip() for name in proposed):
         raise ValueError("candidate names must be non-empty strings")
