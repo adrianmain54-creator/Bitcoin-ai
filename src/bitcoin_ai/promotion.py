@@ -178,9 +178,53 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
     if not proposed:
         evidence_errors.append("no fixed candidates were proposed")
 
+    # Regime slices are descriptive evidence, not tuning inputs. If a candidate
+    # has regime results but positive excess is confined to one adequately
+    # sampled regime, downgrade it to human review rather than rejecting it.
+    regime_diagnostics = {}
+    regime_concentration = []
+    for name in proposed:
+        candidate = candidates.get(name)
+        slices = candidate.get("regime_attribution") if isinstance(candidate, dict) else None
+        if not isinstance(slices, dict) or not slices:
+            regime_diagnostics[name] = {
+                "available": False,
+                "interpretation": "No regime attribution supplied; no regime robustness conclusion.",
+            }
+            continue
+        supported = []
+        positive = []
+        for regime, metrics in slices.items():
+            if not isinstance(metrics, dict):
+                continue
+            observations = metrics.get("observations")
+            excess = metrics.get("excess_return_vs_buy_and_hold_pct_points")
+            if (isinstance(observations, int) and not isinstance(observations, bool)
+                    and observations >= 30
+                    and isinstance(excess, (int, float)) and not isinstance(excess, bool)
+                    and math.isfinite(excess)):
+                supported.append(regime)
+                if excess > 0:
+                    positive.append(regime)
+        concentrated = bool(supported) and len(positive) <= 1
+        regime_diagnostics[name] = {
+            "available": True,
+            "adequately_sampled_regimes": supported,
+            "positive_excess_regimes": positive,
+            "concentrated_in_one_or_fewer_regimes": concentrated,
+            "minimum_observations_per_regime": 30,
+            "interpretation": (
+                "Edge is concentrated in one or fewer adequately sampled regimes; require human review."
+                if concentrated else
+                "No single-regime concentration detected in adequately sampled slices; this is not proof of robustness."
+            ),
+        }
+        if concentrated and name in passing:
+            regime_concentration.append(name)
+
     if evidence_errors or not passing:
         verdict = "reject"
-    elif audit_status != "pass":
+    elif audit_status != "pass" or regime_concentration:
         verdict = "needs_review"
     else:
         verdict = "eligible_for_paper_review"
@@ -202,6 +246,8 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "errors": evidence_errors,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),
+            "regime_diagnostics": regime_diagnostics,
+            "regime_concentration_requires_review": regime_concentration,
         },
         "scope": (
             "Deterministic independent-role review only. Eligibility means a human "
