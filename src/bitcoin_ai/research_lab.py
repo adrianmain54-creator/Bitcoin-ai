@@ -14,7 +14,7 @@ from .backtesting import BacktestError, Bar, _metrics
 from .data_quality import audit_price_bars
 from .agents import run_agent_council
 from .regime import classify_regime
-from .promotion import (evaluate_paper_trial_eligibility, evaluate_strategy_abstention,\n                        evaluate_independent_strategy_validation)
+from .promotion import (\n    evaluate_paper_trial_eligibility,\n    evaluate_strategy_abstention,\n    evaluate_independent_strategy_validation,\n)
 
 
 def _equity_curve(returns):
@@ -702,4 +702,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         fixed_candidate_comparison
     )
     report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
+    report["independent_validation"] = evaluate_independent_strategy_validation(
+        fixed_candidate_comparison, data_quality_report,
+    )
     return report
