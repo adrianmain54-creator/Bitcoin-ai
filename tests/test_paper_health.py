@@ -143,3 +143,35 @@ def test_observation_cadence_gap_requires_human_review(tmp_path):
     assert report["status"] == "review_required"
     assert report["alert"] == "paper_observation_cadence_gap"
     assert report["healthy"] is False
+
+
+def test_health_report_includes_read_only_checkpoint_drawdown(tmp_path):
+    path = tmp_path / "paper.json"
+    observations = []
+    for index, equity in enumerate((1000.0, 1100.0, 990.0, 1050.0)):
+        item = {
+            "observed_at": (NOW - timedelta(minutes=3 - index)).isoformat(),
+            "price": 100.0,
+            "equity": equity,
+            "previous_hash": observations[-1]["observation_hash"] if observations else GENESIS_HASH,
+        }
+        item["observation_hash"] = observation_digest(item)
+        observations.append(item)
+    account = PaperAccount(paper_observations=observations)
+    risk = new_risk_state(1000.0, NOW)
+    PaperStateStore(path).save(account, risk)
+
+    report = build_paper_health_report(path, now=NOW, max_age_seconds=600)
+    assert report["drawdown"]["status"] == "available"
+    assert report["drawdown"]["peak_equity"] == 1100.0
+    assert report["drawdown"]["current_drawdown_pct"] == round((1 - 1050 / 1100) * 100, 6)
+    assert report["drawdown"]["max_observed_drawdown_pct"] == 10.0
+    assert report["status"] == "healthy"
+
+
+def test_drawdown_summary_rejects_invalid_equity():
+    import pytest
+    from bitcoin_ai.drawdown_monitor import summarize_drawdown
+
+    with pytest.raises(ValueError, match="finite and positive"):
+        summarize_drawdown([{"equity": float("nan")}])
