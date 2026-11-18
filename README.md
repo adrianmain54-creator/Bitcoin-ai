@@ -58,3 +58,40 @@ A bot only runs while its host and network are available. Free hosting is not gu
 ## Safety
 
 Never enter seed phrases, private keys, wallet backups, or exchange credentials. Live trading is not enabled. See [docs/PAPER_SERVICE.md](docs/PAPER_SERVICE.md), [docs/PAPER_PERFORMANCE.md](docs/PAPER_PERFORMANCE.md), [docs/SAFETY.md](docs/SAFETY.md), [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md), [docs/AUTOPILOT.md](docs/AUTOPILOT.md), [docs/PAPER_CYCLE.md](docs/PAPER_CYCLE.md), and [docs/TRADING_RISK.md](docs/TRADING_RISK.md).
+
+
+## Candidate trial registry (research-only)
+
+The candidate registry records a strategy definition before its holdout evaluation and permits one later completion event. Each registration fingerprints the complete supplied strategy definition, dataset, test interval, and code revision. Events are stored in an atomic, hash-chained JSON ledger; duplicate trial IDs, edits/tampering, orphan completions, and second completions are rejected.
+
+Example API:
+
+```python
+from bitcoin_ai.candidate_registry import (
+    register_candidate_trial,
+    complete_candidate_trial,
+    audit_candidate_family,
+)
+
+ledger = "./candidate-trials.json"
+register_candidate_trial(
+    ledger,
+    trial_id="run-2026-001",
+    candidate_name="momentum-20",
+    strategy_definition={"lookback": 20, "fees_bps": 10, "timeframe": "1d"},
+    dataset_fingerprint="<64-character SHA-256 of the exact dataset>",
+    code_revision="<git commit SHA>",
+    test_start="2025-01-01T00:00:00+00:00",
+    test_end="2025-03-01T00:00:00+00:00",
+    registered_at="2024-12-31T12:00:00+00:00",
+)
+# Run the predeclared experiment only after registration.
+complete_candidate_trial(
+    ledger,
+    trial_id="run-2026-001",
+    outcome={"net_return_pct": 2.1, "bootstrap_null_p_value": 0.04},
+    completed_at="2025-03-02T00:00:00+00:00",
+)
+```
+
+Use `audit_candidate_family` to count all registered trials on the same dataset with overlapping test windows, including incomplete trials. This first iteration is a standalone API: it is **not yet wired automatically into the research-lab Holm gate**, so do not treat its output as proof that all historical experiments were registered. It cannot detect trials run outside the registry or prove a registration timestamp against an external trusted clock. Back up the ledger and use one writer at a time; concurrent writers are not supported.
