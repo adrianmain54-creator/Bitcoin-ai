@@ -101,7 +101,25 @@ def audit_and_append_holdout_records(path, proposed_records):
     if not isinstance(proposed_records, list):
         raise HoldoutLedgerError("proposed_records must be a list")
     prior = load_holdout_ledger(path)
-    audits = [audit_holdout_reuse(prior, record) for record in proposed_records]
+    # Validate the whole batch and audit each fold against both historical
+    # experiments and earlier folds in this same run. This catches overlapping
+    # walk-forward test windows before they are treated as independent evidence.
+    audits = []
+    seen_ids = {record["experiment_id"] for record in prior}
+    visible_history = list(prior)
+    for index, record in enumerate(proposed_records):
+        try:
+            audit = audit_holdout_reuse(visible_history, record)
+        except HoldoutAuditError as exc:
+            raise HoldoutLedgerError(f"Proposed ledger record {index} is invalid: {exc}") from exc
+        experiment_id = record["experiment_id"]
+        if experiment_id in seen_ids:
+            raise HoldoutLedgerError(
+                f"Duplicate experiment_id {experiment_id!r}; refusing ambiguous ledger entry"
+            )
+        seen_ids.add(experiment_id)
+        audits.append(audit)
+        visible_history.append(record)
     # Validate the whole batch before mutating persistent state.
     envelopes = []
     previous_hash = _ZERO_HASH

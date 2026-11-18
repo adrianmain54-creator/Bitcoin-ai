@@ -74,3 +74,29 @@ def test_refuses_malformed_schema(tmp_path):
     path.write_text(json.dumps({"schema_version": 99, "records": []}))
     with pytest.raises(HoldoutLedgerError):
         load_holdout_ledger(path)
+
+
+
+def test_detects_overlapping_folds_inside_same_run(tmp_path):
+    path = tmp_path / "ledger.json"
+    first = record("run-1:fold-1")
+    second = record(
+        "run-1:fold-2",
+        "2025-01-05T00:00:00+00:00",
+        "2025-01-15T00:00:00+00:00",
+    )
+    result = audit_and_append_holdout_records(path, [first, second])
+    assert result["status"] == "reuse_detected"
+    assert result["fold_audits"][0]["status"] == "no_overlap_detected"
+    assert result["fold_audits"][1]["status"] == "reuse_detected"
+    assert result["appended_record_count"] == 2
+
+
+def test_duplicate_experiment_id_is_rejected_without_mutation(tmp_path):
+    path = tmp_path / "ledger.json"
+    first = record("run-1")
+    audit_and_append_holdout_records(path, [first])
+    before = path.read_bytes()
+    with pytest.raises(HoldoutLedgerError, match="Duplicate experiment_id"):
+        audit_and_append_holdout_records(path, [record("run-1")])
+    assert path.read_bytes() == before
