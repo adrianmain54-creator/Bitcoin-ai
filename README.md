@@ -146,3 +146,9 @@ The research lab now emits `regime_robustness_audit` for every fixed candidate. 
 ### Strategy failure analysis
 
 Each fixed candidate's out-of-sample return stream now receives a chronological failure report: drawdown episodes and recovery status, worst individual loss bars, worst-5%-bar average, loss concentration, and regime-conditioned loss contribution. The report includes timestamps and doubled-cost return context. It is diagnostic only: it describes where losses cluster, does not prove why they happened, and cannot promote a strategy or authorize execution. Underpowered regime slices are marked unknown.
+
+
+
+### Strategy improvement hypotheses
+
+The research lab emits `strategy_improvement_proposals` from each fixed candidate's failure diagnostics. Current rules only suggest bounded risk-reducing comparisons (cash baseline and, for council candidates, lower exposure caps) when drawdown or loss concentration crosses explicit thresholds. Proposals are untested hypotheses, not optimized parameters or recommendations to trade. Each requires a new pre-registered trial and a genuinely unused dataset fingerprint and holdout interval. The helper does not run backtests, mutate the candidate registry, select winners, or authorize execution.
