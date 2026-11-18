@@ -171,22 +171,55 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
     proposed = sorted(candidates)
     if any(not isinstance(name, str) or not name.strip() for name in proposed):
         raise ValueError("candidate names must be non-empty strings")
-    # More tried candidates create more opportunities to find a lucky winner.
-    # Tighten the bootstrap positive-share hurdle as a conservative heuristic.
-    # This is NOT a formal multiple-testing correction: bootstrap share is not a p-value.
-    candidate_count = max(1, len(proposed))
-    multiplicity_floor = 100.0 * (1.0 - 0.05 / candidate_count)
-    effective_probability_threshold = max(
-        float(min_probability_positive_pct), multiplicity_floor
-    )
-    # Skeptic: independently re-run the conservative evidence gate per candidate.
+    # Holm's step-down family-wise error procedure operates on explicit
+    # candidate-level bootstrap null p-values, never on bootstrap positive-share.
+    candidate_count = len(proposed)
+    alpha = 0.05
+    raw_p_values = {}
+    for name in proposed:
+        uncertainty = candidates[name].get("paired_edge_uncertainty") if isinstance(candidates[name], dict) else None
+        p_value = uncertainty.get("bootstrap_null_p_value") if isinstance(uncertainty, dict) else None
+        if (isinstance(p_value, (int, float)) and not isinstance(p_value, bool)
+                and math.isfinite(p_value) and 0.0 <= p_value <= 1.0):
+            raw_p_values[name] = float(p_value)
+    ordered_p_values = sorted(raw_p_values.items(), key=lambda item: (item[1], item[0]))
+    holm_rejected = set()
+    holm_steps = []
+    still_rejecting = True
+    for rank, (name, p_value) in enumerate(ordered_p_values):
+        threshold = alpha / (candidate_count - rank)
+        rejected = still_rejecting and p_value <= threshold
+        holm_steps.append({
+            "candidate": name,
+            "raw_p_value": p_value,
+            "holm_step": rank + 1,
+            "threshold": threshold,
+            "rejected_null": rejected,
+        })
+        if rejected:
+            holm_rejected.add(name)
+        else:
+            still_rejecting = False
+    # Missing/invalid p-values cannot pass a formal family-wise correction.
+    missing_p_values = [name for name in proposed if name not in raw_p_values]
+
+    # Skeptic: independently re-run the evidence gate for each fixed candidate.
     skeptic_reviews = {}
     for name in proposed:
         skeptic_reviews[name] = evaluate_strategy_abstention(
             {name: candidates[name]},
             min_observations=min_observations,
-            min_probability_positive_pct=effective_probability_threshold,
+            min_probability_positive_pct=min_probability_positive_pct,
         )["candidate_assessments"][name]
+        if name not in holm_rejected:
+            skeptic_reviews[name]["eligible_for_review"] = False
+            reason = (
+                "candidate lacks a valid null-centered bootstrap p-value"
+                if name in missing_p_values else
+                "candidate did not pass Holm family-wise error correction at alpha=0.05"
+            )
+            skeptic_reviews[name]["reasons"].append(reason)
+
     # Evidence reviewer: verify audit state and reconcile every proposed candidate.
     audit_status = data_quality_audit.get("status")
     audit_usable = data_quality_audit.get("usable") is True
@@ -349,13 +382,15 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),
             "multiplicity_guard": {
-                "base_minimum_bootstrap_positive_edge_pct": float(min_probability_positive_pct),
-                "effective_minimum_bootstrap_positive_edge_pct": effective_probability_threshold,
                 "candidate_count": candidate_count,
-                "reference_alpha": 0.05,
-                "method": "conservative heuristic: max(base threshold, 100 * (1 - 0.05 / candidate count))",
-                "formal_multiple_testing_correction": False,
-                "warning": "Bootstrap positive-edge share is not a p-value; this guard does not provide formal family-wise error control.",
+                "family_wise_alpha": alpha,
+                "method": "Holm step-down family-wise error correction over one-sided null-centered paired block-bootstrap p-values",
+                "formal_multiple_testing_correction": True,
+                "raw_p_values_available": len(raw_p_values),
+                "missing_or_invalid_p_values": missing_p_values,
+                "holm_steps": holm_steps,
+                "holm_rejected_candidates": sorted(holm_rejected),
+                "warning": "Bootstrap p-values are approximate and depend on the null-centered circular block-bootstrap assumptions; correction does not fix data snooping or an incomplete candidate registry.",
             },
             "regime_diagnostics": regime_diagnostics,
             "regime_concentration_requires_review": regime_concentration,

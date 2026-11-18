@@ -33,6 +33,10 @@ def test_strategy_lab_runs_multi_family_oos_and_bootstrap():
     assert result["out_of_sample_returns"] == result["fold_count"] * 30
     assert result["bootstrap"]["trials"] == 100
     assert result["bootstrap"]["final_equity_p05"] <= result["bootstrap"]["final_equity_p95"]
+    for candidate in result["fixed_candidate_oos_comparison"]["candidates"].values():
+        p_value = candidate["paired_edge_uncertainty"]["bootstrap_null_p_value"]
+        assert 0.0 < p_value <= 1.0
+        assert "null-centered paired circular block bootstrap" in candidate["paired_edge_uncertainty"]["bootstrap_null_test"]
     assert sum(item["observations"] for item in result["out_of_sample_regime_metrics"].values()) == result["out_of_sample_returns"]
     assert sum(result["training_selection_counts"].values()) == result["fold_count"]
     assert result["out_of_sample_metrics_at_2x_cost"]["total_return_pct"] <= result["out_of_sample_metrics"]["total_return_pct"]

@@ -10,6 +10,7 @@ def passing_candidate():
             "observed_excess_return_pct": 8.0,
             "excess_return_p05_pct": 1.0,
             "probability_positive_pct": 97.0,
+            "bootstrap_null_p_value": 0.01,
         },
         "metrics_at_2x_cost": {"total_return_pct": 3.0},
     }
@@ -195,32 +196,48 @@ def test_parameter_sensitivity_ignores_distant_or_different_family_candidates():
     assert diagnostic["nearby_candidates"] == []
 
 
-def test_candidate_multiplicity_tightens_positive_bootstrap_share_hurdle():
-    strong = passing_candidate()
-    strong["paired_edge_uncertainty"]["probability_positive_pct"] = 97.0
+def test_holm_correction_rejects_candidates_that_fail_step_down_threshold():
+    first = passing_candidate()
+    second = passing_candidate()
+    first["paired_edge_uncertainty"]["bootstrap_null_p_value"] = 0.03
+    second["paired_edge_uncertainty"]["bootstrap_null_p_value"] = 0.04
     result = evaluate_independent_strategy_validation(
-        {"candidate-a": strong, "candidate-b": passing_candidate()},
+        {"candidate-a": first, "candidate-b": second},
         {"usable": True, "status": "pass"},
     )
     guard = result["evidence_reviewer"]["multiplicity_guard"]
     assert guard["candidate_count"] == 2
-    assert guard["effective_minimum_bootstrap_positive_edge_pct"] == pytest.approx(97.5)
-    assert guard["formal_multiple_testing_correction"] is False
-    assert result["skeptic"]["candidate_reviews"]["candidate-a"]["eligible_for_review"] is False
-    assert any(
-        "bootstrap positive-edge share is below 97.5%" in reason
-        for reason in result["skeptic"]["candidate_reviews"]["candidate-a"]["reasons"]
-    )
+    assert guard["formal_multiple_testing_correction"] is True
+    assert guard["holm_steps"][0]["threshold"] == pytest.approx(0.025)
+    assert guard["holm_rejected_candidates"] == []
+    assert result["verdict"] == "reject"
 
 
-def test_candidate_multiplicity_guard_does_not_call_bootstrap_share_a_p_value():
+def test_holm_correction_accepts_step_down_family_when_all_p_values_pass():
+    first = passing_candidate()
+    second = passing_candidate()
+    first["paired_edge_uncertainty"]["bootstrap_null_p_value"] = 0.01
+    second["paired_edge_uncertainty"]["bootstrap_null_p_value"] = 0.04
     result = evaluate_independent_strategy_validation(
-        {"one": passing_candidate()},
+        {"candidate-a": first, "candidate-b": second},
         {"usable": True, "status": "pass"},
     )
     guard = result["evidence_reviewer"]["multiplicity_guard"]
-    assert guard["effective_minimum_bootstrap_positive_edge_pct"] == 95.0
-    assert "not a p-value" in guard["warning"]
+    assert guard["holm_rejected_candidates"] == ["candidate-a", "candidate-b"]
+    assert result["verdict"] == "eligible_for_paper_review"
+
+
+def test_holm_correction_fails_closed_when_candidate_p_value_is_missing():
+    candidate = passing_candidate()
+    del candidate["paired_edge_uncertainty"]["bootstrap_null_p_value"]
+    result = evaluate_independent_strategy_validation(
+        {"candidate": candidate},
+        {"usable": True, "status": "pass"},
+    )
+    guard = result["evidence_reviewer"]["multiplicity_guard"]
+    assert guard["missing_or_invalid_p_values"] == ["candidate"]
+    assert result["verdict"] == "reject"
+    assert result["skeptic"]["candidate_reviews"]["candidate"]["eligible_for_review"] is False
 
 
 def test_independent_validation_rejects_invalid_candidate_names():
