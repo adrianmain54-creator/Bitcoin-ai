@@ -156,13 +156,23 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
 
     # Proposer: enumerate the fixed candidates already defined before OOS scoring.
     proposed = sorted(candidates)
+    if any(not isinstance(name, str) or not name.strip() for name in proposed):
+        raise ValueError("candidate names must be non-empty strings")
+    # More tried candidates create more opportunities to find a lucky winner.
+    # Tighten the bootstrap positive-share hurdle as a conservative heuristic.
+    # This is NOT a formal multiple-testing correction: bootstrap share is not a p-value.
+    candidate_count = max(1, len(proposed))
+    multiplicity_floor = 100.0 * (1.0 - 0.05 / candidate_count)
+    effective_probability_threshold = max(
+        float(min_probability_positive_pct), multiplicity_floor
+    )
     # Skeptic: independently re-run the conservative evidence gate per candidate.
     skeptic_reviews = {}
     for name in proposed:
         skeptic_reviews[name] = evaluate_strategy_abstention(
             {name: candidates[name]},
             min_observations=min_observations,
-            min_probability_positive_pct=min_probability_positive_pct,
+            min_probability_positive_pct=effective_probability_threshold,
         )["candidate_assessments"][name]
     # Evidence reviewer: verify audit state and reconcile every proposed candidate.
     audit_status = data_quality_audit.get("status")
@@ -316,6 +326,15 @@ def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
             "errors": evidence_errors,
             "candidate_review_coverage": len(skeptic_reviews),
             "proposed_candidate_count": len(proposed),
+            "multiplicity_guard": {
+                "base_minimum_bootstrap_positive_edge_pct": float(min_probability_positive_pct),
+                "effective_minimum_bootstrap_positive_edge_pct": effective_probability_threshold,
+                "candidate_count": candidate_count,
+                "reference_alpha": 0.05,
+                "method": "conservative heuristic: max(base threshold, 100 * (1 - 0.05 / candidate count))",
+                "formal_multiple_testing_correction": False,
+                "warning": "Bootstrap positive-edge share is not a p-value; this guard does not provide formal family-wise error control.",
+            },
             "regime_diagnostics": regime_diagnostics,
             "regime_concentration_requires_review": regime_concentration,
             "parameter_sensitivity_diagnostics": parameter_diagnostics,
