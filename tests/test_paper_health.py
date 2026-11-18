@@ -120,3 +120,26 @@ def test_strategy_degradation_requires_review_in_health_report(tmp_path):
     assert report["status"] == "review_required"
     assert report["alert"] == "strategy_performance_degradation"
     assert report["healthy"] is False
+
+
+def test_observation_cadence_gap_requires_human_review(tmp_path):
+    path = tmp_path / "paper.json"
+    start = NOW - timedelta(minutes=40)
+    observations = []
+    for index in range(4):
+        stamp = start + timedelta(minutes=index if index < 2 else index + 20)
+        item = {
+            "observed_at": stamp.isoformat(), "price": 100.0,
+            "equity": 1000.0, "baseline_equity": 1000.0,
+            "previous_hash": observations[-1]["observation_hash"] if observations else GENESIS_HASH,
+        }
+        item["observation_hash"] = observation_digest(item)
+        observations.append(item)
+    account = PaperAccount(paper_observations=observations)
+    risk = new_risk_state(1000.0, NOW)
+    PaperStateStore(path).save(account, risk)
+    report = build_paper_health_report(path, now=NOW, max_age_seconds=3600)
+    assert report["forward_evidence_status"] == "insufficient_evidence"
+    assert report["status"] == "review_required"
+    assert report["alert"] == "paper_observation_cadence_gap"
+    assert report["healthy"] is False
