@@ -77,3 +77,26 @@ def test_three_minute_fallback_never_substitutes_five_minute_candles():
     with pytest.raises(MarketDataError, match="does not support 3m"):
         client.completed_closes(interval="3m", now=NOW)
     assert calls == 1
+
+
+
+def test_missing_candle_interval_is_rejected():
+    base_ms = int(NOW.timestamp() * 1000) - 900_000
+    rows = [
+        candle(base_ms, 100, base_ms + 299_999),
+        candle(base_ms + 600_000, 102, base_ms + 899_999),
+    ]
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
+    with pytest.raises(MarketDataError, match="missing interval"):
+        client.completed_closes(now=NOW)
+
+
+def test_stale_latest_candle_is_rejected():
+    base_ms = int(NOW.timestamp() * 1000) - 3_600_000
+    rows = [
+        candle(base_ms, 100, base_ms + 299_999),
+        candle(base_ms + 300_000, 101, base_ms + 599_999),
+    ]
+    client = BinanceCandleClient(opener=lambda *a, **k: Response(rows))
+    with pytest.raises(MarketDataError, match="stale"):
+        client.completed_closes(now=NOW)
