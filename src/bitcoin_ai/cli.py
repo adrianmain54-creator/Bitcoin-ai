@@ -41,7 +41,7 @@ def main() -> None:
     paper_parser.add_argument("--initial-cash", type=float, default=10_000.0)
     report_parser = subparsers.add_parser("paper-report", help="Show read-only mark-to-market paper account performance")
     report_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
-    report_parser.add_argument("--initial-cash", type=float, default=10_000.0, help="Original starting cash used when the account was created")
+    report_parser.add_argument("--initial-cash", type=float, help="Override starting capital (required only for legacy state files created before starting capital was persisted)")
     report_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
     report_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     backtest_parser = subparsers.add_parser("backtest", help="Research-test an SMA strategy on historical close-price CSV data")
