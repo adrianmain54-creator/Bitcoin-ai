@@ -58,6 +58,10 @@ class PaperService:
 
         # Reject edited/corrupt history before using it as evidence or extending it.
         verify_observation_chain(account.paper_observations)
+        # Hash validity alone does not prove semantic validity. Validate the
+        # complete history before running a strategy cycle so malformed or
+        # out-of-order evidence cannot trigger a trade or be persisted further.
+        evaluate_forward_paper_evidence(account.paper_observations)
 
         # The same completed candle may be returned by multiple polls.
         # Never let duplicate observations create repeated decisions or inflate

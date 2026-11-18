@@ -5,6 +5,7 @@ import pytest
 
 from bitcoin_ai.market_data import MarketDataError
 from bitcoin_ai.paper_service import PaperService
+from bitcoin_ai.forward_validation import GENESIS_HASH, observation_digest
 from bitcoin_ai.state_store import StateStoreError
 
 
@@ -99,3 +100,42 @@ def test_tampered_forward_history_stops_next_paper_cycle(tmp_path):
     )
     with pytest.raises(ValueError, match="hash verification failed"):
         second.run_once()
+
+
+
+def test_semantically_invalid_but_rehashed_history_fails_before_paper_cycle(tmp_path):
+    path = tmp_path / "paper.json"
+    first = PaperService(state_path=str(path), client=FakeClient(),
+                         clock=lambda: NOW)
+    first.run_once()
+    later = NOW.replace(minute=11)
+    second = PaperService(
+        state_path=str(path),
+        client=FakeClient(observed_at=later),
+        clock=lambda: later,
+    )
+    second.run_once()
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    observations = payload["account"]["paper_observations"]
+    observations[0]["observed_at"], observations[1]["observed_at"] = (
+        observations[1]["observed_at"], observations[0]["observed_at"]
+    )
+    previous = GENESIS_HASH
+    for item in observations:
+        item["previous_hash"] = previous
+        item.pop("observation_hash", None)
+        item["observation_hash"] = observation_digest(item)
+        previous = item["observation_hash"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    before = path.read_text(encoding="utf-8")
+
+    later_again = NOW.replace(minute=12)
+    service = PaperService(
+        state_path=str(path),
+        client=FakeClient(observed_at=later_again),
+        clock=lambda: later_again,
+    )
+    with pytest.raises(ValueError, match="strictly increasing"):
+        service.run_once()
+    assert path.read_text(encoding="utf-8") == before
