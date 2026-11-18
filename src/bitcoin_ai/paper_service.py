@@ -66,6 +66,7 @@ class PaperService:
                     "state_path": str(self.store.path),
                 }
 
+        baseline_equity = account.equity(closes[-1])
         result = run_paper_cycle(
             closes=closes, account=account, risk_state=risk,
             observed_at=observed_at, now=now, limits=self.limits,
@@ -74,6 +75,7 @@ class PaperService:
             "observed_at": observed_at.isoformat(),
             "price": closes[-1],
             "equity": result.equity,
+            "baseline_equity": baseline_equity,
             "signal": result.signal.action,
             "risk_allowed": result.risk.allowed,
             "risk_halted": result.risk.halted,
