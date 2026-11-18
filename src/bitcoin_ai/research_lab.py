@@ -14,7 +14,11 @@ from .backtesting import BacktestError, Bar, _metrics
 from .data_quality import audit_price_bars
 from .agents import run_agent_council
 from .regime import classify_regime
-from .promotion import (\n    evaluate_paper_trial_eligibility,\n    evaluate_strategy_abstention,\n    evaluate_independent_strategy_validation,\n)
+from .promotion import (
+    evaluate_paper_trial_eligibility,
+    evaluate_strategy_abstention,
+    evaluate_independent_strategy_validation,
+)
 
 
 def _equity_curve(returns):
