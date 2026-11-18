@@ -8,8 +8,8 @@ from bitcoin_ai.strategy_failure_analysis import (
 
 def test_reports_drawdown_episodes_and_recovery():
     report = analyze_strategy_failures(
-        [0.10, -0.20, -0.10, 0.30, -0.05],
-        stress_returns=[0.09, -0.22, -0.12, 0.28, -0.07],
+        [0.10, -0.20, -0.10, 0.50, -0.05],
+        stress_returns=[0.09, -0.22, -0.12, 0.48, -0.07],
         regimes=["uptrend", "downtrend", "downtrend", "uptrend", "range"],
         timestamps=[f"2026-01-0{i + 1}T00:00:00+00:00" for i in range(5)],
         min_regime_observations=2,
