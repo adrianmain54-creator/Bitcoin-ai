@@ -20,6 +20,7 @@ class PaperAccount:
     fee_bps: float = 10.0
     slippage_bps: float = 5.0
     max_allocation: float = 0.25
+    initial_cash: float | None = None
     trades: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -31,6 +32,11 @@ class PaperAccount:
             raise PaperTradingError("trades must be a list of event objects")
         if self.cash < 0 or self.btc < 0:
             raise PaperTradingError("cash and BTC balances cannot be negative")
+        if self.initial_cash is not None and (
+            isinstance(self.initial_cash, bool) or not isinstance(self.initial_cash, (int, float))
+            or not math.isfinite(self.initial_cash) or self.initial_cash <= 0
+        ):
+            raise PaperTradingError("initial_cash must be None or a finite positive number")
         if self.fee_bps < 0 or self.slippage_bps < 0:
             raise PaperTradingError("fees and slippage cannot be negative")
         if self.fee_bps >= 10_000 or self.slippage_bps >= 10_000:
@@ -50,6 +56,11 @@ class PaperAccount:
             raise PaperTradingError("account state contains non-finite or non-numeric values")
         if self.cash < 0 or self.btc < 0:
             raise PaperTradingError("account balances cannot be negative")
+        if self.initial_cash is not None and (
+            isinstance(self.initial_cash, bool) or not isinstance(self.initial_cash, (int, float))
+            or not math.isfinite(self.initial_cash) or self.initial_cash <= 0
+        ):
+            raise PaperTradingError("initial_cash must be None or a finite positive number")
         if not 0 <= self.max_allocation <= 1:
             raise PaperTradingError("max_allocation must be between 0 and 1")
         if (self.fee_bps < 0 or self.slippage_bps < 0

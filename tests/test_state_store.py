@@ -12,7 +12,7 @@ NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def test_round_trip_persists_account_trades_and_risk(tmp_path):
-    account = PaperAccount(cash=8_000, btc=0.04)
+    account = PaperAccount(cash=8_000, btc=0.04, initial_cash=10_000)
     account.trades.append({"side": "buy", "timestamp": NOW.isoformat()})
     risk = new_risk_state(10_000, NOW)
     risk.last_trade_at = NOW
@@ -22,6 +22,7 @@ def test_round_trip_persists_account_trades_and_risk(tmp_path):
     loaded_account, loaded_risk = store.load()
     assert loaded_account.cash == account.cash
     assert loaded_account.btc == account.btc
+    assert loaded_account.initial_cash == 10_000
     assert loaded_account.trades == account.trades
     assert loaded_risk.utc_day == risk.utc_day
     assert loaded_risk.last_trade_at == NOW

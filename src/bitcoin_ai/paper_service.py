@@ -46,6 +46,7 @@ class PaperService:
             account = PaperAccount(
                 cash=self.initial_cash,
                 max_allocation=self.limits.max_allocation,
+                initial_cash=self.initial_cash,
             )
             risk = new_risk_state(account.equity(closes[-1]), now)
 

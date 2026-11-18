@@ -11,9 +11,15 @@ from .paper_trading import PaperAccount, PaperTradingError
 
 
 def build_performance_report(account: PaperAccount, *, price: float,
-                             starting_cash: float) -> dict:
+                             starting_cash: float | None = None) -> dict:
     if not isinstance(account, PaperAccount):
         raise PaperTradingError("account must be a PaperAccount")
+    if starting_cash is None:
+        starting_cash = account.initial_cash
+    if starting_cash is None:
+        raise PaperTradingError(
+            "starting capital is unknown for this legacy account; supply --initial-cash explicitly"
+        )
     for name, value in (("price", price), ("starting_cash", starting_cash)):
         if (isinstance(value, bool) or not isinstance(value, (int, float))
                 or not math.isfinite(value) or value <= 0):
