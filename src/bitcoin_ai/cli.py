@@ -7,6 +7,7 @@ from .corpus_audit import build_corpus_report, format_corpus_report
 from .backtesting import BacktestError, load_close_csv, run_sma_backtest
 from .knowledge import KnowledgeBase, BitcoinAnswerEngine
 from .paper_service import PaperService
+from .paper_health import build_paper_health_report
 from .market_data import BinanceCandleClient, MarketDataError
 from .performance import build_performance_report
 from .state_store import PaperStateStore, StateStoreError
@@ -39,6 +40,10 @@ def main() -> None:
     paper_parser.add_argument("--interval", choices=["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"], default="1m")
     paper_parser.add_argument("--poll-seconds", type=float, default=60.0)
     paper_parser.add_argument("--initial-cash", type=float, default=10_000.0)
+    health_parser = subparsers.add_parser("paper-health", help="Check persisted paper trader health without changing state")
+    health_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
+    health_parser.add_argument("--max-age-seconds", type=float, default=180.0)
+    health_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     report_parser = subparsers.add_parser("paper-report", help="Show read-only mark-to-market paper account performance")
     report_parser.add_argument("--state", type=Path, default=Path("bitcoin-ai-paper-state.json"))
     report_parser.add_argument("--initial-cash", type=float, default=10_000.0, help="Original starting cash used when the account was created")
@@ -186,6 +191,21 @@ def main() -> None:
         return
 
 
+
+    if args.command == "paper-health":
+        try:
+            report = build_paper_health_report(
+                args.state, max_age_seconds=args.max_age_seconds,
+            )
+        except (ValueError, OSError) as exc:
+            parser.exit(1, f"bitcoin-ai: paper health check failed: {exc}\\n")
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"Paper trader health: {report['status']}")
+            print(f"Alert: {report.get('alert') or 'none'}")
+            print(report["action"])
+        return
 
     if args.command == "paper-report":
         try:
