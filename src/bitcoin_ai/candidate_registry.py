@@ -271,8 +271,8 @@ def audit_candidate_family(
         raise CandidateRegistryError("test_start must precede test_end")
     data = load_candidate_registry(path)
     completions = {
-        e["event"]["trial_id"] for e in data["events"]
-        if e["event"]["type"] == "completed"
+        e["event"]["trial_id"]: e["event"]
+        for e in data["events"] if e["event"]["type"] == "completed"
     }
     matches = []
     for item in data["events"]:
@@ -293,6 +293,10 @@ def audit_candidate_family(
                 "candidate_name": definition["candidate_name"],
                 "definition_hash": event["definition_hash"],
                 "completed": event["trial_id"] in completions,
+                "outcome": (
+                    completions[event["trial_id"]]["outcome"]
+                    if event["trial_id"] in completions else None
+                ),
             })
     return {
         "status": "complete" if matches and all(item["completed"] for item in matches) else "review_required",
