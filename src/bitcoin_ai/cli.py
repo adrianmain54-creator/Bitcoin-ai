@@ -13,6 +13,7 @@ from .performance import build_performance_report
 from .state_store import PaperStateStore, StateStoreError
 from .walk_forward import walk_forward_sma_backtest
 from .research_lab import run_strategy_lab
+from .holdout_ledger import HoldoutLedgerError, load_holdout_ledger, audit_and_append_holdout_records
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -77,6 +78,7 @@ def main() -> None:
     lab_parser.add_argument("--periods-per-year", type=float, default=365.0)
     lab_parser.add_argument("--bootstrap-trials", type=int, default=500)
     lab_parser.add_argument("--seed", type=int, default=7)
+    lab_parser.add_argument("--experiment-ledger", type=Path, help="Optional durable append-only holdout ledger JSON path (single writer)")
     lab_parser.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
@@ -156,14 +158,25 @@ def main() -> None:
     if args.command == "research-lab":
         try:
             bars = load_close_csv(args.csv)
+            prior_ledger = (
+                load_holdout_ledger(args.experiment_ledger)
+                if args.experiment_ledger is not None else None
+            )
             result = run_strategy_lab(
                 bars, train_bars=args.train_bars, test_bars=args.test_bars,
                 step_bars=args.step_bars, fee_bps=args.fee_bps,
                 slippage_bps=args.slippage_bps,
                 periods_per_year=args.periods_per_year,
                 bootstrap_trials=args.bootstrap_trials, seed=args.seed,
+                previous_holdout_experiments=prior_ledger,
             )
-        except (BacktestError, OSError, ValueError) as exc:
+            if args.experiment_ledger is not None:
+                persistent_audit = audit_and_append_holdout_records(
+                    args.experiment_ledger,
+                    result["holdout_reuse_audit"]["ledger_records_to_append"],
+                )
+                result["holdout_reuse_audit"] = persistent_audit
+        except (BacktestError, HoldoutLedgerError, OSError, ValueError) as exc:
             parser.exit(1, f"bitcoin-ai: strategy research failed: {exc}\\n")
         if args.json:
             print(json.dumps(result, indent=2))

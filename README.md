@@ -37,11 +37,13 @@ python -m pip install -e ".[dev]"
 bitcoin-ai ask "How does a Bitcoin transaction use UTXOs?"
 bitcoin-ai network --currency USD
 bitcoin-ai walk-forward --csv ./btc-daily.csv --train-bars 365 --test-bars 90 --periods-per-year 365
-bitcoin-ai research-lab --csv ./btc-daily.csv --train-bars 365 --test-bars 90 --bootstrap-trials 500
+bitcoin-ai research-lab --csv ./btc-daily.csv --train-bars 365 --test-bars 90 --bootstrap-trials 500 --experiment-ledger ./research-holdouts.json
 bitcoin-ai paper-run --state ./paper-state.json --interval 1m --poll-seconds 60
 bitcoin-ai paper-report --state ./paper-state.json --initial-cash 10000
 pytest
 ```
+
+The optional `--experiment-ledger` file is created at the path you specify. Keep it backed up and do not edit it manually: corruption or hash-chain changes cause the research command to stop rather than silently reset history. Use one research process at a time per ledger file; concurrent writers are not supported. Every run is recorded, including runs that reuse an exposed holdout. A clean overlap audit is not proof of independence or profitability.
 
 ## Trading development sequence
 

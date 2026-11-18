@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import random
+import uuid
 from statistics import mean, pstdev
 
 from .backtesting import BacktestError, Bar, _metrics
@@ -675,9 +676,10 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     prior_ledger = [] if previous_holdout_experiments is None else previous_holdout_experiments
     holdout_audits = []
     holdout_ledger_records = []
+    experiment_run_id = uuid.uuid4().hex
     for fold_index, fold in enumerate(folds):
         proposed = {
-            "experiment_id": f"research-fold-{fold_index + 1}",
+            "experiment_id": f"{experiment_run_id}:fold-{fold_index + 1}",
             "dataset_fingerprint": dataset_fingerprint,
             "test_start": fold["test_start"],
             "test_end": fold["test_end"],
