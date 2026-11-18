@@ -61,6 +61,10 @@ class BinanceCandleClient:
                 completed.append((close, close_ms))
         if len(completed) < 2:
             raise MarketDataError("Not enough completed Binance candles")
+        duration_ms = self.INTERVAL_MINUTES[interval] * 60_000
+        if any(completed[i][1] - completed[i - 1][1] != duration_ms
+               for i in range(1, len(completed))):
+            raise MarketDataError("Binance candles contain a missing interval")
         return ([x[0] for x in completed],
                 datetime.fromtimestamp(completed[-1][1] / 1000, timezone.utc))
 
@@ -97,6 +101,9 @@ class BinanceCandleClient:
         if len(completed) < 2:
             raise MarketDataError("Not enough completed Kraken candles")
         completed = completed[-limit:]
+        if any(completed[i][1] - completed[i - 1][1] != duration
+               for i in range(1, len(completed))):
+            raise MarketDataError("Kraken candles contain a missing interval")
         return ([x[0] for x in completed],
                 datetime.fromtimestamp(completed[-1][1], timezone.utc))
 
@@ -111,11 +118,18 @@ class BinanceCandleClient:
         if current.tzinfo is None or current.utcoffset() is None:
             raise ValueError("now must be timezone-aware")
 
+        max_age = 2 * self.INTERVAL_MINUTES[interval] * 60
         try:
-            return self._binance(interval, limit, current)
+            closes, latest = self._binance(interval, limit, current)
+            if (current - latest).total_seconds() > max_age:
+                raise MarketDataError("Binance latest completed candle is stale")
+            return closes, latest
         except (MarketDataError, URLError, TimeoutError, OSError, ValueError, TypeError, KeyError) as binance_error:
             try:
-                return self._kraken(interval, limit, current)
+                closes, latest = self._kraken(interval, limit, current)
+                if (current - latest).total_seconds() > max_age:
+                    raise MarketDataError("Kraken latest completed candle is stale")
+                return closes, latest
             except (MarketDataError, URLError, TimeoutError, OSError, ValueError, TypeError, KeyError) as kraken_error:
                 raise MarketDataError(
                     f"BTC market data unavailable from Binance and Kraken "
