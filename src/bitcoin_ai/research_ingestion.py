@@ -187,7 +187,19 @@ def prepare_research_dataset(
             "tolerance": float(max_price_deviation),
         },
     }
-    fingerprint = hashlib.sha256(_canonical(core)).hexdigest()
+    # Fingerprint dataset identity, not ingestion timing metadata.
+    # Source names are sorted above, so caller ordering cannot affect the hash.
+    fingerprint_material = {
+        "schema_version": core["schema_version"],
+        "symbol": core["symbol"],
+        "interval": core["interval"],
+        "start": core["start"],
+        "end": core["end"],
+        "row_count": core["row_count"],
+        "sources": names,
+        "canonical_bars": core["canonical_bars"],
+    }
+    fingerprint = hashlib.sha256(_canonical(fingerprint_material)).hexdigest()
     return {
         "status": "prepared",
         "dataset_fingerprint": fingerprint,
