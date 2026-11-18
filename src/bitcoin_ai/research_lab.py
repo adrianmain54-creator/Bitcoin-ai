@@ -283,12 +283,26 @@ def _paired_edge_bootstrap(strategy_returns, benchmark_returns, trials, seed, bl
     n = len(paired)
     block_size = min(block_size, n)
     samples = []
+    observed_log_edge = sum(paired)
+    centered = [value - mean(paired) for value in paired]
+    null_exceedances = 0
     for _ in range(trials):
         sample = []
+        null_sample = []
         while len(sample) < n:
             start = rng.randrange(n)
-            sample.extend(paired[(start + offset) % n] for offset in range(block_size))
-        samples.append((math.exp(sum(sample[:n])) - 1.0) * 100.0)
+            indices = [(start + offset) % n for offset in range(block_size)]
+            sample.extend(paired[index] for index in indices)
+            null_sample.extend(centered[index] for index in indices)
+        sample = sample[:n]
+        null_sample = null_sample[:n]
+        samples.append((math.exp(sum(sample)) - 1.0) * 100.0)
+        if sum(null_sample) >= observed_log_edge:
+            null_exceedances += 1
+    # Plus-one correction avoids a zero Monte Carlo p-value. This is an
+    # approximate one-sided null-centered circular block-bootstrap test,
+    # not an exact finite-sample test.
+    bootstrap_null_p_value = (null_exceedances + 1) / (trials + 1)
 
     def percentile(values, p):
         ordered = sorted(values)
@@ -304,6 +318,8 @@ def _paired_edge_bootstrap(strategy_returns, benchmark_returns, trials, seed, bl
         "excess_return_median_pct": round(percentile(samples, 0.50), 4),
         "excess_return_p95_pct": round(percentile(samples, 0.95), 4),
         "probability_positive_pct": round(100.0 * sum(value > 0 for value in samples) / trials, 2),
+        "bootstrap_null_p_value": round(bootstrap_null_p_value, 8),
+        "bootstrap_null_test": "one-sided null-centered paired circular block bootstrap with plus-one Monte Carlo correction",
         "interpretation": (
             "Paired circular block-bootstrap uncertainty from historical held-out intervals; "
             "not a formal hypothesis test, p-value, or forecast of unseen regimes."
