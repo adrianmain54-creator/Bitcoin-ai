@@ -74,6 +74,12 @@ def build_paper_health_report(state_path, *, now=None, max_age_seconds=180.0):
             "alert": "strategy_performance_degradation",
             "action": "Pause promotion decisions and review recent strategy performance, market regime, and execution assumptions. This monitor does not change positions or clear risk controls.",
         }
+    if evidence["cadence_status"] == "gaps_detected":
+        return {
+            **common, "status": "review_required", "healthy": False,
+            "alert": "paper_observation_cadence_gap",
+            "action": "Review missing paper observations and the data/service timeline. Do not treat this evidence window as continuous or use it to promote a strategy.",
+        }
     return {
         **common, "status": "healthy", "healthy": True, "alert": None,
         "action": "Paper state is valid and the latest observation is within the freshness limit.",
