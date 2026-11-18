@@ -89,3 +89,48 @@ def test_independent_validation_rejects_missing_cost_stress_evidence():
     assert "required edge, probability, or stress metrics are missing or invalid" in (
         result["skeptic"]["candidate_reviews"]["tampered"]["reasons"]
     )
+
+
+def test_regime_concentrated_edge_requires_human_review():
+    candidate = passing_candidate()
+    candidate["regime_attribution"] = {
+        "uptrend": {
+            "observations": 45,
+            "excess_return_vs_buy_and_hold_pct_points": 4.0,
+        },
+        "range": {
+            "observations": 50,
+            "excess_return_vs_buy_and_hold_pct_points": -2.0,
+        },
+        "high_volatility": {
+            "observations": 12,
+            "excess_return_vs_buy_and_hold_pct_points": 8.0,
+        },
+    }
+    result = evaluate_independent_strategy_validation(
+        {"candidate": candidate}, {"usable": True, "status": "pass"},
+    )
+    assert result["verdict"] == "needs_review"
+    diagnostic = result["evidence_reviewer"]["regime_diagnostics"]["candidate"]
+    assert diagnostic["adequately_sampled_regimes"] == ["uptrend", "range"]
+    assert diagnostic["positive_excess_regimes"] == ["uptrend"]
+    assert result["evidence_reviewer"]["regime_concentration_requires_review"] == ["candidate"]
+
+
+def test_regime_diagnostic_does_not_overinterpret_small_samples():
+    candidate = passing_candidate()
+    candidate["regime_attribution"] = {
+        "uptrend": {
+            "observations": 20,
+            "excess_return_vs_buy_and_hold_pct_points": 5.0,
+        },
+        "range": {
+            "observations": 18,
+            "excess_return_vs_buy_and_hold_pct_points": -2.0,
+        },
+    }
+    result = evaluate_independent_strategy_validation(
+        {"candidate": candidate}, {"usable": True, "status": "pass"},
+    )
+    assert result["verdict"] == "eligible_for_paper_review"
+    assert result["evidence_reviewer"]["regime_diagnostics"]["candidate"]["adequately_sampled_regimes"] == []
