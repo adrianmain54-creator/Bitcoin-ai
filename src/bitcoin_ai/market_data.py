@@ -205,6 +205,10 @@ class BinanceCandleClient:
         return {
             "closes": binance_closes,
             "latest": binance_latest,
+            "source_closes": {
+                "binance": binance_closes,
+                "kraken": kraken_closes,
+            },
             "audit": {
                 "status": "cross_checked",
                 "sources": ["binance", "kraken"],
@@ -226,7 +230,7 @@ class BinanceCandleClient:
     COINBASE_URL = "https://api.exchange.coinbase.com/products/BTC-USDT/candles"
     COINBASE_GRANULARITY = {
         "1m": 60, "5m": 300, "15m": 900,
-        "1h": 3600, "4h": 21600, "1d": 86400,
+        "1h": 3600, "1d": 86400,
     }
 
     def _coinbase(self, interval: str, limit: int, current: datetime):
@@ -303,7 +307,7 @@ class BinanceCandleClient:
                 f"at least {min_overlap} required"
             )
         binance = pair["closes"][-overlap:]
-        kraken = self._kraken(interval, limit, current)[0][-overlap:]
+        kraken = pair["source_closes"]["kraken"][-overlap:]
         coinbase = third_closes[-overlap:]
         deviations = {
             "binance_kraken": [
