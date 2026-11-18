@@ -321,8 +321,9 @@ def _paired_edge_bootstrap(strategy_returns, benchmark_returns, trials, seed, bl
         "bootstrap_null_p_value": round(bootstrap_null_p_value, 8),
         "bootstrap_null_test": "one-sided null-centered paired circular block bootstrap with plus-one Monte Carlo correction",
         "interpretation": (
-            "Paired circular block-bootstrap uncertainty from historical held-out intervals; "
-            "not a formal hypothesis test, p-value, or forecast of unseen regimes."
+            "Paired circular block-bootstrap uncertainty from historical held-out intervals. "
+            "The separate null-centered bootstrap p-value is approximate, assumption-dependent, "
+            "and not a forecast of unseen regimes."
         ),
     }
 
