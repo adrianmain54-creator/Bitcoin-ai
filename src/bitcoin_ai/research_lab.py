@@ -6,6 +6,8 @@ This is research tooling, not a profitability claim.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import random
 from statistics import mean, pstdev
@@ -348,7 +350,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                      candidates=None, step_bars=None, fee_bps=10.0,
                      slippage_bps=5.0, periods_per_year=365.0,
                      bootstrap_trials=500, seed=7,
-                     expected_interval_seconds=None):
+                     expected_interval_seconds=None,
+                     previous_holdout_experiments=None):
     """Compare candidates using rolling OOS folds after auditing source data."""
     candidates = DEFAULT_CANDIDATES if candidates is None else candidates
     data_quality_report = audit_price_bars(
@@ -660,7 +663,48 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 periods_per_year,
             ),
         }
+    # Fingerprint the exact ordered input series. Prior experiment records must
+    # be supplied from an append-only external ledger by the caller.
+    canonical_dataset = json.dumps(
+        [{"timestamp": bar.timestamp.isoformat(), "close": float(bar.close)} for bar in bars],
+        sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode("utf-8")
+    dataset_fingerprint = hashlib.sha256(canonical_dataset).hexdigest()
+    from .holdout_audit import audit_holdout_reuse
+
+    prior_ledger = [] if previous_holdout_experiments is None else previous_holdout_experiments
+    holdout_audits = []
+    holdout_ledger_records = []
+    for fold_index, fold in enumerate(folds):
+        proposed = {
+            "experiment_id": f"research-fold-{fold_index + 1}",
+            "dataset_fingerprint": dataset_fingerprint,
+            "test_start": fold["test_start"],
+            "test_end": fold["test_end"],
+        }
+        audit = audit_holdout_reuse(prior_ledger, proposed)
+        holdout_audits.append(audit)
+        holdout_ledger_records.append(proposed)
+    holdout_reuse_detected = any(
+        item["status"] == "reuse_detected" for item in holdout_audits
+    )
     report = {
+        "holdout_reuse_audit": {
+            "status": "reuse_detected" if holdout_reuse_detected else (
+                "no_prior_ledger_supplied" if previous_holdout_experiments is None
+                else "no_overlap_detected"
+            ),
+            "dataset_fingerprint": dataset_fingerprint,
+            "fold_audits": holdout_audits,
+            "ledger_records_to_append": holdout_ledger_records,
+            "eligible_for_fresh_holdout_review": (
+                previous_holdout_experiments is not None and not holdout_reuse_detected
+            ),
+            "warning": (
+                "Append ledger_records_to_append to a durable append-only ledger after "
+                "the run. If no prior ledger was supplied, freshness cannot be assessed."
+            ),
+        },
         "data_quality_audit": data_quality_report,
         "method": "multi-family rolling walk-forward with regime-conditioned OOS analysis, defensive volatility targeting, fixed-candidate paired OOS comparison, and cost stress",
         "fixed_candidate_oos_comparison": {
