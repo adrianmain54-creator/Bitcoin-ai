@@ -90,8 +90,9 @@ def test_source_failure_aborts_instead_of_downgrading_to_two_sources():
 def test_divergent_third_venue_rejected_by_shared_ingestion_gate():
     payloads = list(venue_payloads())
     payloads[2] = [
-        [row[0], row[1], row[2], row[3], str(float(row[4]) * (1.05 if i == 8 else 1)),
-         row[5]]
+        [row[0], row[1],
+         str(float(row[4]) * 1.05 + 1) if i == 8 else row[2],
+         row[3], str(float(row[4]) * (1.05 if i == 8 else 1)), row[5]]
         for i, row in enumerate(payloads[2])
     ]
     with pytest.raises(ResearchMarketFetchError, match="divergence"):
