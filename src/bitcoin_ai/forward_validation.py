@@ -76,7 +76,29 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
         (parsed[-1][0] - parsed[0][0]).total_seconds() / 86400.0
         if count >= 2 else 0.0
     )
-    sufficient = count >= min_observations and elapsed_days >= min_days
+    intervals = [
+        (parsed[i][0] - parsed[i - 1][0]).total_seconds()
+        for i in range(1, count)
+    ]
+    cadence_gaps = []
+    median_interval = None
+    if len(intervals) >= 2:
+        ordered_intervals = sorted(intervals)
+        middle = len(ordered_intervals) // 2
+        median_interval = (
+            ordered_intervals[middle] if len(ordered_intervals) % 2
+            else (ordered_intervals[middle - 1] + ordered_intervals[middle]) / 2
+        )
+        cadence_gaps = [
+            {"after_observation": index, "gap_seconds": round(seconds, 3)}
+            for index, seconds in enumerate(intervals)
+            if seconds > 3 * median_interval
+        ]
+    cadence_known = len(intervals) >= 2
+    sufficient = (
+        count >= min_observations and elapsed_days >= min_days
+        and cadence_known and not cadence_gaps
+    )
     if count >= 2:
         first_equity = observations[0].get("baseline_equity", parsed[0][2])
         if (isinstance(first_equity, bool) or not isinstance(first_equity, (int, float))
@@ -99,6 +121,14 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
         "required_observations": min_observations,
         "elapsed_days": round(elapsed_days, 4),
         "required_days": float(min_days),
+        "cadence_status": (
+            "gaps_detected" if cadence_gaps else
+            "regular" if cadence_known else "not_enough_intervals"
+        ),
+        "median_interval_seconds": (
+            round(median_interval, 3) if median_interval is not None else None
+        ),
+        "suspicious_gaps": cadence_gaps,
         "strategy_return_pct": round(strategy_return, 4) if strategy_return is not None else None,
         "buy_and_hold_return_pct": round(benchmark_return, 4) if benchmark_return is not None else None,
         "excess_return_vs_buy_and_hold_pct_points": (
@@ -107,9 +137,9 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
         ),
         "max_drawdown_pct": round(max_drawdown, 4) if max_drawdown is not None else None,
         "interpretation": (
-            "Forward paper evidence has reached the configured review minimum. "
+            "Forward paper evidence has reached the configured review minimum with no detected cadence gaps. "
             "This is descriptive evidence, not proof of edge or permission to trade."
             if sufficient else
-            "Keep collecting unique forward paper observations; historical backtests do not count."
+            "Keep collecting unique, regularly spaced forward paper observations; historical backtests do not count."
         ),
     }
