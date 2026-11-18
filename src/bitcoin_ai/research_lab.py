@@ -247,6 +247,62 @@ def _bootstrap(returns, trials, seed, block_size=5):
     }
 
 
+
+def _paired_edge_bootstrap(strategy_returns, benchmark_returns, trials, seed, block_size=5):
+    """Estimate uncertainty in compounded relative performance using paired blocks.
+
+    Pairing preserves the same market intervals for strategy and benchmark.
+    This is a descriptive historical uncertainty interval, not a p-value.
+    """
+    if len(strategy_returns) != len(benchmark_returns):
+        raise BacktestError("Paired strategy and benchmark returns must have equal lengths")
+    if not strategy_returns:
+        return {
+            "trials": 0, "observations": 0,
+            "excess_return_p05_pct": None, "excess_return_median_pct": None,
+            "excess_return_p95_pct": None, "probability_positive_pct": None,
+            "interpretation": "No paired held-out observations are available.",
+        }
+    paired = []
+    for strategy, benchmark in zip(strategy_returns, benchmark_returns):
+        if (not isinstance(strategy, (int, float)) or isinstance(strategy, bool)
+                or not math.isfinite(strategy) or strategy <= -1
+                or not isinstance(benchmark, (int, float)) or isinstance(benchmark, bool)
+                or not math.isfinite(benchmark) or benchmark <= -1):
+            raise BacktestError("Paired returns must be finite numbers greater than -1")
+        paired.append(math.log1p(strategy) - math.log1p(benchmark))
+    rng = random.Random(seed)
+    n = len(paired)
+    block_size = min(block_size, n)
+    samples = []
+    for _ in range(trials):
+        sample = []
+        while len(sample) < n:
+            start = rng.randrange(n)
+            sample.extend(paired[(start + offset) % n] for offset in range(block_size))
+        samples.append((math.exp(sum(sample[:n])) - 1.0) * 100.0)
+
+    def percentile(values, p):
+        ordered = sorted(values)
+        return ordered[round((len(ordered) - 1) * p)]
+
+    observed = (math.exp(sum(paired)) - 1.0) * 100.0
+    return {
+        "trials": trials,
+        "observations": n,
+        "block_size": block_size,
+        "observed_excess_return_pct": round(observed, 4),
+        "excess_return_p05_pct": round(percentile(samples, 0.05), 4),
+        "excess_return_median_pct": round(percentile(samples, 0.50), 4),
+        "excess_return_p95_pct": round(percentile(samples, 0.95), 4),
+        "probability_positive_pct": round(100.0 * sum(value > 0 for value in samples) / trials, 2),
+        "interpretation": (
+            "Paired circular block-bootstrap uncertainty from historical held-out intervals; "
+            "not a formal hypothesis test, p-value, or forecast of unseen regimes."
+        ),
+    }
+
+
 def _selection_score(returns, metrics, regime_labels=None, *,
                     turnover_units=0.0, turnover_penalty_weight=0.05):
     """Score training candidates, including a small normalized turnover regularizer."""
@@ -544,7 +600,7 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         }
     benchmark_equity = math.prod(1.0 + value for value in benchmark)
     fixed_candidate_comparison = {}
-    for family, lookback in normalized:
+    for candidate_index, (family, lookback) in enumerate(normalized):
         key = f"{family}:{lookback}"
         candidate_returns = comparison_returns[(family, lookback)]
         candidate_equity = math.prod(1.0 + value for value in candidate_returns)
@@ -581,6 +637,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
             "metrics": _metrics(candidate_returns, _equity_curve(candidate_returns), periods_per_year),
             "return_pct": round((candidate_equity - 1.0) * 100.0, 4),
             "excess_return_vs_buy_and_hold_pct_points": round((candidate_equity - benchmark_equity) * 100.0, 4),
+            "paired_edge_uncertainty": _paired_edge_bootstrap(
+                candidate_returns, benchmark, bootstrap_trials, seed + candidate_index,
+            ),
             "metrics_at_2x_cost": _metrics(
                 comparison_stress_returns[(family, lookback)],
                 _equity_curve(comparison_stress_returns[(family, lookback)]),
