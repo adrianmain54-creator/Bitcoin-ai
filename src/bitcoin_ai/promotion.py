@@ -138,3 +138,74 @@ def evaluate_strategy_abstention(candidates, *, min_observations=180,
             "review and paper-forward validation. A fail means abstain to cash."
         ),
     }
+
+
+def evaluate_independent_strategy_validation(candidates, data_quality_audit, *,
+                                            min_observations=180,
+                                            min_probability_positive_pct=95.0):
+    """Run deterministic proposer, skeptic, and evidence-review roles.
+
+    This is an auditable rules engine, not an LLM or proof of strategy skill.
+    It only recommends whether a human may review a separate paper-forward
+    trial. It never selects a strategy or authorizes execution.
+    """
+    if not isinstance(candidates, dict):
+        raise ValueError("candidates must be a dictionary")
+    if not isinstance(data_quality_audit, dict):
+        raise ValueError("data_quality_audit must be a dictionary")
+
+    # Proposer: enumerate the fixed candidates already defined before OOS scoring.
+    proposed = sorted(candidates)
+    # Skeptic: independently re-run the conservative evidence gate per candidate.
+    skeptic_reviews = {}
+    for name in proposed:
+        skeptic_reviews[name] = evaluate_strategy_abstention(
+            {name: candidates[name]},
+            min_observations=min_observations,
+            min_probability_positive_pct=min_probability_positive_pct,
+        )["candidate_assessments"][name]
+    # Evidence reviewer: verify audit state and reconcile every proposed candidate.
+    audit_status = data_quality_audit.get("status")
+    audit_usable = data_quality_audit.get("usable") is True
+    missing_reviews = [name for name in proposed if name not in skeptic_reviews]
+    passing = [name for name in proposed
+               if skeptic_reviews.get(name, {}).get("eligible_for_review") is True]
+    evidence_errors = []
+    if not audit_usable or audit_status == "fail":
+        evidence_errors.append("historical data quality audit is not usable")
+    if missing_reviews:
+        evidence_errors.append("one or more proposed candidates lack skeptic review")
+    if not proposed:
+        evidence_errors.append("no fixed candidates were proposed")
+
+    if evidence_errors or not passing:
+        verdict = "reject"
+    elif audit_status != "pass":
+        verdict = "needs_review"
+    else:
+        verdict = "eligible_for_paper_review"
+
+    return {
+        "verdict": verdict,
+        "proposer": {
+            "fixed_candidates": proposed,
+            "basis": "candidate definitions supplied before held-out evaluation",
+        },
+        "skeptic": {
+            "candidate_reviews": skeptic_reviews,
+            "passing_candidates": passing,
+            "method": "paired OOS edge, bootstrap lower bound and positive share, minimum sample, and 2x-cost checks",
+        },
+        "evidence_reviewer": {
+            "data_quality_status": audit_status,
+            "data_quality_usable": audit_usable,
+            "errors": evidence_errors,
+            "candidate_review_coverage": len(skeptic_reviews),
+            "proposed_candidate_count": len(proposed),
+        },
+        "scope": (
+            "Deterministic independent-role review only. Eligibility means a human "
+            "may consider a separately monitored paper-forward trial; it is not a "
+            "strategy selection, profitability claim, or authorization to trade."
+        ),
+    }
