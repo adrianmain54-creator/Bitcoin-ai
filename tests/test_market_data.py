@@ -128,8 +128,8 @@ def test_cross_check_rejects_divergent_exchange_prices():
     binance_rows, kraken_payload = cross_check_payloads(100, 103)
     payloads = iter([binance_rows, kraken_payload])
     client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
-    with pytest.raises(MarketDataError, match="price divergence"):
-        client.cross_checked_completed_closes(now=NOW)
+    with pytest.raises(MarketDataError, match="history contains 1 divergent"):
+        client.cross_checked_completed_closes(now=NOW, min_overlap=2)
 
 
 def test_cross_check_fails_closed_if_one_exchange_is_unavailable():
