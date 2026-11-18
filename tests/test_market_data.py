@@ -121,7 +121,7 @@ def test_cross_check_accepts_aligned_exchange_prices():
     client = BinanceCandleClient(opener=lambda *a, **k: Response(next(payloads)))
     closes, observed = client.cross_checked_completed_closes(now=NOW)
     assert closes == [99.0, 100.0]
-    assert observed == datetime.fromtimestamp((int(NOW.timestamp()) * 1000) - 1, timezone.utc)
+    assert observed == datetime.fromtimestamp(((int(NOW.timestamp()) * 1000) - 1) / 1000, timezone.utc)
 
 
 def test_cross_check_rejects_divergent_exchange_prices():
