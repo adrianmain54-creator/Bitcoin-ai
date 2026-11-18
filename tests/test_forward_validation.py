@@ -64,10 +64,6 @@ def test_forward_evidence_requires_unique_chronological_timestamps():
 def test_forward_evidence_rejects_invalid_financial_values(field):
     data = observations()
     data[1][field] = float("nan")
-    # Rebuild a valid chain so this tests numeric validation, not tamper detection.
-    data[1][field] = 0.0
-    resign(data)
-    data[1][field] = float("nan")
     with pytest.raises(ValueError, match="finite and positive"):
         evaluate_forward_paper_evidence(data)
 
