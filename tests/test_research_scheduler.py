@@ -91,8 +91,9 @@ def test_uncertain_market_conditions_abstain_without_queue_mutation(tmp_path, co
 
 def test_requires_three_unique_verified_sources_and_sufficient_history(tmp_path):
     path = tmp_path / "queue.json"
-    with pytest.raises(ResearchSchedulerError, match="three unique"):
-        scan(path, market_context=clean_context(exchange_sources=["binance", "kraken", "kraken"]))
+    report = scan(path, market_context=clean_context(exchange_sources=["binance", "kraken", "kraken"]))
+    assert report["status"] == "abstained"
+    assert not path.exists()
     with pytest.raises(ResearchSchedulerError, match="20 aligned"):
         scan(path, market_context=clean_context(aligned_candles=19))
 
