@@ -167,3 +167,24 @@ The research-only `bitcoin_ai.fresh_evidence.evaluate_fresh_candidate` gate comp
 
 `bitcoin_ai.research_ingestion.prepare_research_dataset` accepts normalized, completed OHLCV payloads from explicit callers and prepares a deterministic research bundle only after strict validation. It checks source identity, symbol/interval provenance, timezone-aware retrieval times, staleness/future timestamps, finite OHLCV values and candle relationships, strictly increasing timestamps, exact cadence, exact cross-source timestamp alignment, and close-price agreement across at least three unique sources. The bundle records source provenance, coverage, row count, quality status, and a SHA-256 dataset fingerprint. It never sorts, drops, fills, interpolates, resamples, or repairs candles. The fingerprint is deterministic for the same data/provenance and is not proof of a fresh or unused holdout: candidate preregistration and the existing holdout-ledger/fresh-evidence checks remain mandatory. This stage consumes supplied payloads and does not fetch data or run experiments.
 
+### Live historical OHLCV ingestion (research-only)
+
+`bitcoin_ai.research_market_ingestion.PublicResearchMarketIngestor` retrieves completed BTC-USDT OHLCV candles directly from the public Binance, Kraken, and Coinbase market-data endpoints. It uses no API keys, account endpoints, wallet information, or order APIs. All three providers are mandatory: an outage or unsupported interval aborts the dataset rather than silently reducing the source count. Only intervals supported by all three providers are accepted (`1m`, `5m`, `15m`, `1h`, and `1d`); the requested history is bounded to 20–300 candles.
+
+Example:
+
+```python
+from datetime import datetime, timezone
+from bitcoin_ai.research_market_ingestion import PublicResearchMarketIngestor
+
+report = PublicResearchMarketIngestor().fetch_and_prepare(
+    interval="5m",
+    limit=100,
+    now=datetime.now(timezone.utc),
+)
+print(report["dataset_fingerprint"])
+print(report["provenance"])
+```
+
+The fetched OHLCV payloads pass through the same strict ingestion gate as caller-supplied data: exact timestamp cadence and alignment, retrieval freshness, a latest-completed-candle age limit of two intervals, finite and structurally valid OHLCV, and cross-source close-price tolerance. The Coinbase adapter verifies the provider's documented newest-first order before reversing it into chronological order; it does not sort arbitrary malformed data. No candles are interpolated, filled, resampled, or repaired. Provider outages, rate limits, product availability, and shared upstream faults remain possible. A successful fetch is a data-quality result only: `holdout_status` remains `not_assessed`, and this operation does not register candidates, evaluate strategies, or authorize paper/live orders.
+
