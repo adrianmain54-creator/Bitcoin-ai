@@ -44,3 +44,18 @@ def test_report_rejects_malformed_trade_checkpoint():
     account.trades = [{"equity_after": float("nan"), "fee_paid": 0}]
     with pytest.raises(PaperTradingError):
         build_performance_report(account, price=50_000, starting_cash=10_000)
+
+
+
+def test_report_uses_persisted_original_starting_capital():
+    account = PaperAccount(cash=8_000, btc=0.04, initial_cash=10_000)
+    report = build_performance_report(account, price=50_000)
+    assert report["starting_cash"] == pytest.approx(10_000)
+    assert report["equity"] == pytest.approx(10_000)
+    assert report["net_pnl"] == pytest.approx(0)
+
+
+def test_report_requires_explicit_capital_for_legacy_account():
+    account = PaperAccount(cash=8_000, btc=0.04)
+    with pytest.raises(PaperTradingError, match="starting capital is unknown"):
+        build_performance_report(account, price=50_000)
