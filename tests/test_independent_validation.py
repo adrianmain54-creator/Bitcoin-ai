@@ -57,3 +57,35 @@ def test_independent_validation_rejects_unusable_data_even_with_edge():
 def test_independent_validation_rejects_empty_proposals():
     result = evaluate_independent_strategy_validation({}, {"usable": True, "status": "pass"})
     assert result["verdict"] == "reject"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("observed_excess_return_pct", float("nan")),
+        ("excess_return_p05_pct", float("inf")),
+        ("probability_positive_pct", True),
+        ("observations", True),
+    ],
+)
+def test_independent_validation_rejects_malformed_numeric_evidence(field, value):
+    candidate = passing_candidate()
+    target = "paired_edge_uncertainty"
+    candidate[target][field] = value
+    result = evaluate_independent_strategy_validation(
+        {"tampered": candidate}, {"usable": True, "status": "pass"},
+    )
+    assert result["verdict"] == "reject"
+    assert result["skeptic"]["candidate_reviews"]["tampered"]["eligible_for_review"] is False
+
+
+def test_independent_validation_rejects_missing_cost_stress_evidence():
+    candidate = passing_candidate()
+    candidate["metrics_at_2x_cost"] = {}
+    result = evaluate_independent_strategy_validation(
+        {"tampered": candidate}, {"usable": True, "status": "pass"},
+    )
+    assert result["verdict"] == "reject"
+    assert "required edge, probability, or stress metrics are missing or invalid" in (
+        result["skeptic"]["candidate_reviews"]["tampered"]["reasons"]
+    )
