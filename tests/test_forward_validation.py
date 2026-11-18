@@ -25,6 +25,15 @@ def observations(count=3, days=8):
     return result
 
 
+def resign(data):
+    previous = GENESIS_HASH
+    for item in data:
+        item["previous_hash"] = previous
+        item.pop("observation_hash", None)
+        item["observation_hash"] = observation_digest(item)
+        previous = item["observation_hash"]
+
+
 def test_forward_evidence_requires_both_observation_count_and_elapsed_time():
     result = evaluate_forward_paper_evidence(
         observations(3, 8), min_observations=3, min_days=7,
@@ -46,6 +55,7 @@ def test_forward_evidence_does_not_confuse_many_fast_samples_with_time():
 def test_forward_evidence_requires_unique_chronological_timestamps():
     data = observations()
     data[2]["observed_at"] = data[1]["observed_at"]
+    resign(data)
     with pytest.raises(ValueError, match="strictly increasing"):
         evaluate_forward_paper_evidence(data)
 
@@ -54,6 +64,10 @@ def test_forward_evidence_requires_unique_chronological_timestamps():
 def test_forward_evidence_rejects_invalid_financial_values(field):
     data = observations()
     data[1][field] = float("nan")
+    # Rebuild a valid chain so this tests numeric validation, not tamper detection.
+    data[1][field] = 0.0
+    resign(data)
+    data[1][field] = float("nan")
     with pytest.raises(ValueError, match="finite and positive"):
         evaluate_forward_paper_evidence(data)
 
@@ -61,6 +75,7 @@ def test_forward_evidence_rejects_invalid_financial_values(field):
 def test_forward_evidence_rejects_naive_timestamps():
     data = observations()
     data[0]["observed_at"] = "2026-01-01T00:00:00"
+    resign(data)
     with pytest.raises(ValueError, match="timezone-aware"):
         evaluate_forward_paper_evidence(data)
 
