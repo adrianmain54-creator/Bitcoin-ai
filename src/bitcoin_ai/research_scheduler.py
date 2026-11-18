@@ -120,12 +120,15 @@ def scan_and_queue_research(
     aligned = market_context.get("aligned_candles")
     if not isinstance(regime, str) or not regime.strip():
         raise ResearchSchedulerError("market context regime is missing")
-    if (not isinstance(sources, list) or len(set(sources)) < 3
-            or any(not isinstance(source, str) or not source for source in sources)):
+    if (not isinstance(sources, list)
+            or any(not isinstance(source, str) or not source for source in sources)
+            or len(set(sources)) < 3):
         raise ResearchSchedulerError("scheduler requires three unique verified exchange sources")
     if isinstance(aligned, bool) or not isinstance(aligned, int) or aligned < 20:
         raise ResearchSchedulerError("scheduler requires at least 20 aligned market candles")
-    if market_context.get("anomaly_alert_count") != 0 or market_context.get("risk_flags") != []:
+    alert_count = market_context.get("anomaly_alert_count")
+    if (isinstance(alert_count, bool) or alert_count != 0
+            or market_context.get("risk_flags") != []):
         return {
             "status": "abstained",
             "reason": "market anomaly or risk flags require review",
