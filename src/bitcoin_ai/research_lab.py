@@ -754,5 +754,6 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
     report["paper_trial_eligibility"] = evaluate_paper_trial_eligibility(report)
     report["independent_validation"] = evaluate_independent_strategy_validation(
         fixed_candidate_comparison, data_quality_report,
+        holdout_reuse_audit=report["holdout_reuse_audit"],
     )
     return report
