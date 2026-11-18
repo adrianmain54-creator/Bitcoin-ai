@@ -50,7 +50,6 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
             or not math.isfinite(min_days) or min_days < 0):
         raise ValueError("min_days must be a finite non-negative number")
 
-    verify_observation_chain(observations)
     parsed = []
     for index, item in enumerate(observations):
         if not isinstance(item, dict):
@@ -68,6 +67,7 @@ def evaluate_forward_paper_evidence(observations, *, min_observations=100,
                 raise ValueError(f"observation {index} {label} must be finite and positive")
         parsed.append((timestamp, float(price), float(equity)))
 
+    verify_observation_chain(observations)
     if any(parsed[i][0] <= parsed[i - 1][0] for i in range(1, len(parsed))):
         raise ValueError("observations must have strictly increasing timestamps")
 
