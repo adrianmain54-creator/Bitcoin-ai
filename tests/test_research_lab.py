@@ -676,3 +676,27 @@ def test_candidate_registry_requires_exact_code_revision(tmp_path):
             bootstrap_trials=100,
             candidate_registry_path=tmp_path / "candidate-trials.json",
         )
+
+
+def test_candidate_registry_must_match_recorded_bootstrap_p_values(tmp_path):
+    from bitcoin_ai.promotion import evaluate_independent_strategy_validation
+
+    result = run_strategy_lab(
+        bars(), train_bars=100, test_bars=30,
+        candidates=[{"family": "sma", "lookback": 12}],
+        bootstrap_trials=100,
+        previous_holdout_experiments=[],
+        candidate_registry_path=tmp_path / "candidate-trials.json",
+        code_revision="test-revision-123",
+    )
+    altered_audit = result["candidate_registry_audit"]
+    altered_audit["registered_trials"][0]["outcome"]["bootstrap_null_p_value"] = 0.99
+    validation = evaluate_independent_strategy_validation(
+        result["fixed_candidate_oos_comparison"]["candidates"],
+        result["data_quality_audit"],
+        holdout_reuse_audit=result["holdout_reuse_audit"],
+        candidate_family_audit=altered_audit,
+    )
+    reviewer = validation["evidence_reviewer"]
+    assert reviewer["candidate_registry_verified"] is False
+    assert any("recorded p-value evidence" in error for error in reviewer["errors"])
