@@ -152,3 +152,8 @@ Each fixed candidate's out-of-sample return stream now receives a chronological 
 ### Strategy improvement hypotheses
 
 The research lab emits `strategy_improvement_proposals` from each fixed candidate's failure diagnostics. Current rules only suggest bounded risk-reducing comparisons (cash baseline and, for council candidates, lower exposure caps) when drawdown or loss concentration crosses explicit thresholds. Proposals are untested hypotheses, not optimized parameters or recommendations to trade. Each requires a new pre-registered trial and a genuinely unused dataset fingerprint and holdout interval. The helper does not run backtests, mutate the candidate registry, select winners, or authorize execution.
+
+
+### Fresh-evidence proposal evaluation
+
+The research-only `bitcoin_ai.fresh_evidence.evaluate_fresh_candidate` gate compares a proposed candidate with its unchanged source strategy and a cash baseline using exactly aligned return streams on one preregistered dataset fingerprint and test interval. It verifies three distinct trial registrations, exact candidate identities, code revision, interval and dataset provenance, and the existing tamper-evident candidate and holdout ledgers. Any prior overlapping interval, missing registration, provenance mismatch, malformed/non-finite series, or underpowered sample is rejected before scoring. The report includes paired circular block-bootstrap lower bounds, bootstrap positive-share checks, compounded returns, doubled-cost sensitivity, and regime slices. Passing only yields `eligible_for_human_review`; it does not register or complete trials, append to the ledger, promote a strategy, or authorize paper/live execution. Ledger completeness and bootstrap assumptions remain material limitations.
