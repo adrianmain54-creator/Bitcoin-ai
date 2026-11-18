@@ -59,3 +59,24 @@ def test_market_data_failure_does_not_create_account_state(tmp_path):
     with pytest.raises(MarketDataError):
         service.run_once()
     assert not path.exists()
+
+def test_forward_observations_survive_service_restart(tmp_path):
+    path = tmp_path / "paper.json"
+    first = PaperService(state_path=str(path), client=FakeClient(),
+                         clock=lambda: NOW)
+    first.run_once()
+
+    later = NOW.replace(minute=11)
+    second = PaperService(
+        state_path=str(path),
+        client=FakeClient(observed_at=later),
+        clock=lambda: later,
+    )
+    report = second.run_once()
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    observations = persisted["account"]["paper_observations"]
+    assert len(observations) == 2
+    assert observations[0]["observed_at"] < observations[1]["observed_at"]
+    assert report["forward_evidence"]["observations"] == 2
+
+
