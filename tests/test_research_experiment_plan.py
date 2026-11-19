@@ -46,7 +46,7 @@ def test_prepares_deterministic_plan_and_typed_bars_without_side_effects():
     )
     assert first["status"] == "plan_prepared"
     assert first["plan_id"] == second["plan_id"]
-    assert len(first["bars"]) == 80
+    assert len(first["bars"]) == 81
     assert isinstance(first["bars"][0], Bar)
     assert first["plan"]["candidates"]["cash"] == {"family": "cash", "lookback": 2}
     assert first["execution_authority"] == "none"
@@ -83,7 +83,7 @@ def test_rejects_too_short_dataset_and_invalid_costs():
     task, report = fixtures()
     with pytest.raises(ResearchPlanError, match="needs bars"):
         prepare_scheduled_experiment(
-            task, report, train_bars=70, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
+            task, report, train_bars=71, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
         )
     with pytest.raises(ResearchPlanError, match="combined costs"):
         prepare_scheduled_experiment(
