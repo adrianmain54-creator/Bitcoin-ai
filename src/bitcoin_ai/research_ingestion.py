@@ -59,15 +59,17 @@ def compute_research_dataset_fingerprint(dataset: dict) -> str:
     bars = dataset.get("canonical_bars")
     if not isinstance(sources, list) or not isinstance(bars, list):
         raise ResearchIngestionError("dataset source names or canonical bars are missing")
-    if dataset.get("schema_version") != 1:
+    schema_version = dataset.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version != 1:
         raise ResearchIngestionError("unsupported prepared dataset schema")
     if (not isinstance(sources, list) or not sources
             or any(not isinstance(source, str) or not source for source in sources)
             or len(set(sources)) != len(sources) or sources != sorted(sources)):
         raise ResearchIngestionError("dataset source names must be unique, non-empty, and sorted")
+    row_count = dataset.get("row_count")
     if (not isinstance(bars, list) or len(bars) < 3
-            or isinstance(dataset.get("row_count"), bool)
-            or dataset.get("row_count") != len(bars)):
+            or isinstance(row_count, bool) or not isinstance(row_count, int)
+            or row_count != len(bars)):
         raise ResearchIngestionError("dataset row count does not match canonical bars")
     if (not isinstance(dataset.get("symbol"), str) or not dataset["symbol"]
             or not isinstance(dataset.get("interval"), str) or not dataset["interval"]):
@@ -76,9 +78,11 @@ def compute_research_dataset_fingerprint(dataset: dict) -> str:
             or dataset.get("start") != bars[0].get("timestamp")
             or dataset.get("end") != bars[-1].get("timestamp")):
         raise ResearchIngestionError("dataset start/end metadata does not match canonical bars")
+    aligned = cross_source.get("aligned_candles")
+    divergent = cross_source.get("divergent_candles")
     if (cross_source.get("status") != "cross_checked"
-            or cross_source.get("aligned_candles") != len(bars)
-            or cross_source.get("divergent_candles") != 0):
+            or isinstance(aligned, bool) or not isinstance(aligned, int) or aligned != len(bars)
+            or isinstance(divergent, bool) or not isinstance(divergent, int) or divergent != 0):
         raise ResearchIngestionError("dataset cross-source integrity metadata is incomplete")
     material = {
         "schema_version": dataset.get("schema_version"),
