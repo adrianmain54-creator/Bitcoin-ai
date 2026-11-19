@@ -144,3 +144,14 @@ def test_fingerprint_excludes_ingestion_time_but_includes_data_provenance():
     )
     assert first["dataset_fingerprint"] == later["dataset_fingerprint"]
     assert first["provenance"]["ingested_at"] != later["provenance"]["ingested_at"]
+
+
+def test_fingerprint_changes_when_secondary_source_ohlcv_changes_within_tolerance():
+    baseline = [payload("binance"), payload("coinbase"), payload("kraken")]
+    changed = [payload("binance"), payload("coinbase"), payload("kraken")]
+    # Volume is not part of the close-price divergence gate, but it is still
+    # part of the observed source dataset and must be covered by its identity.
+    changed[1]["bars"][1]["volume"] += 0.25
+    original_report = ingest(baseline)
+    changed_report = ingest(changed)
+    assert original_report["dataset_fingerprint"] != changed_report["dataset_fingerprint"]
