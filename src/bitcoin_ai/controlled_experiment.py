@@ -146,6 +146,9 @@ def run_preregistered_experiment(
     interval is therefore rejected rather than silently reusing exposed data.
     """
     plan, bars = _verify_plan(prepared)
+    plan_interval_seconds = _INTERVAL_SECONDS[plan["interval"]]
+    if expected_interval_seconds is not None and expected_interval_seconds != plan_interval_seconds:
+        raise ControlledExperimentError("expected_interval_seconds conflicts with the immutable plan interval")
     registered = _iso(registered_at, "registered_at")
     registry_path, ledger_path = Path(candidate_registry_path), Path(holdout_ledger_path)
     fingerprint = plan["dataset_fingerprint"]
@@ -227,9 +230,7 @@ def run_preregistered_experiment(
         for role in _ROLES
     ]
     if expected_interval_seconds is None:
-        expected_interval_seconds = _INTERVAL_SECONDS.get(plan.get("interval"))
-    elif expected_interval_seconds != _INTERVAL_SECONDS.get(plan.get("interval")):
-        raise ControlledExperimentError("expected_interval_seconds conflicts with the immutable plan interval")
+        expected_interval_seconds = plan_interval_seconds
     report = run_strategy_lab(
         bars,
         train_bars=plan["train_bars"],
