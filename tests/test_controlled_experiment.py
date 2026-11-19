@@ -109,3 +109,46 @@ def test_rejects_nonterminal_test_window_before_registration(tmp_path):
         )
     assert not (tmp_path / "registry.json").exists()
     assert not (tmp_path / "holdouts.json").exists()
+
+
+def test_rejects_plan_row_count_mismatch_before_registration(tmp_path):
+    prepared = fixtures()
+    prepared["plan"]["row_count"] -= 1
+    import hashlib
+    import json
+    prepared["plan_id"] = hashlib.sha256(json.dumps(
+        prepared["plan"], sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode()).hexdigest()
+    with pytest.raises(ControlledExperimentError, match="row_count"):
+        run_preregistered_experiment(
+            prepared, candidate_registry_path=tmp_path / "registry.json",
+            holdout_ledger_path=tmp_path / "holdouts.json",
+            registered_at="2026-01-01T00:00:00+00:00",
+        )
+    assert not (tmp_path / "registry.json").exists()
+    assert not (tmp_path / "holdouts.json").exists()
+
+
+def test_rejects_interior_bar_timestamp_cadence_mismatch_before_registration(tmp_path):
+    prepared = fixtures()
+    prepared["bars"][55].timestamp += timedelta(seconds=30)
+    with pytest.raises(ControlledExperimentError, match="exact interval cadence"):
+        run_preregistered_experiment(
+            prepared, candidate_registry_path=tmp_path / "registry.json",
+            holdout_ledger_path=tmp_path / "holdouts.json",
+            registered_at="2026-01-01T00:00:00+00:00",
+        )
+    assert not (tmp_path / "registry.json").exists()
+    assert not (tmp_path / "holdouts.json").exists()
+
+
+def test_rejects_caller_interval_override_that_conflicts_with_plan(tmp_path):
+    with pytest.raises(ControlledExperimentError, match="conflicts"):
+        run_preregistered_experiment(
+            fixtures(), candidate_registry_path=tmp_path / "registry.json",
+            holdout_ledger_path=tmp_path / "holdouts.json",
+            registered_at="2026-01-01T00:00:00+00:00",
+            expected_interval_seconds=300,
+        )
+    assert not (tmp_path / "registry.json").exists()
+    assert not (tmp_path / "holdouts.json").exists()
