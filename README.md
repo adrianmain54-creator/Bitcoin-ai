@@ -341,3 +341,17 @@ python -m bitcoin_ai.research_review_pipeline \
 The manifest binds the comparison ID, plan ID, reproducibility receipt ID, source report digest, and exact output hashes. Each output is staged in its destination directory and individually published with an atomic replace; the manifest is published last so its presence indicates that the bundle publication completed. Filesystem replacement across multiple files is not a single transaction, so an interrupted publication can leave comparison/HTML outputs without a manifest. Re-run only from the same already-completed inputs to republish; this step never reruns a holdout or evaluator.
 
 This is a local, deterministic post-run artifact step. It makes no network requests and does not alter source artifacts, candidate registries, holdout ledgers, paper state, or trading accounts. All output remains research-only with no execution authority.
+
+
+### Verify a saved research review bundle
+
+After producing the comparison JSON, static HTML, and manifest, independently verify that all three still belong together:
+
+```bash
+python -m bitcoin_ai.research_review_bundle_audit \
+  --comparison state/research-comparison.json \
+  --html state/research-review.html \
+  --manifest state/research-review-manifest.json
+```
+
+The verifier is read-only. It checks the manifest's canonical fingerprint, comparison identity and provenance, both output SHA-256 hashes, and that the HTML exactly matches a fresh rendering of the verified comparison artifact. It reports verified IDs and hashes; it does not establish a trusted signature, timestamp, source authenticity, or profitability. Keep the manifest with the two outputs: it is the retained digest reference used to detect later changes.
