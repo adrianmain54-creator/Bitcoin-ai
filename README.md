@@ -300,3 +300,15 @@ This is an integrity check, not a cryptographic signature or trusted timestamp: 
 Successful controlled research runs now include a `reproducibility_receipt` in the returned JSON. It binds the plan and dataset fingerprints, code revision, exact test window, interval, train/test/step sizes, fee and slippage assumptions, bootstrap trial count, random seed, canonical research-report SHA-256, final candidate-registry hash-chain head, and completion timestamp. The receipt itself has a canonical SHA-256 identifier.
 
 Retain the receipt alongside the research report and plan. Hashes help detect later edits when a trusted copy is retained independently; they are not signatures, trusted timestamps, or proof that a particular code revision executed. Dependency and hardware versions are not fully captured, so bit-for-bit reruns are not guaranteed. No execution authority is added.
+
+### Completed research-results comparison (research-only)
+
+After a controlled experiment and the existing read-only fresh-evidence evaluation have both completed, `bitcoin_ai.research_comparison.compare_completed_research` creates a compact comparison of the proposal against the unchanged source and cash baseline. It verifies the canonical plan ID, report digest, receipt digest, dataset/code/window provenance, aligned candidate streams, and evidence observation count before summarizing compounded net returns, doubled-cost returns, and maximum drawdown. Existing paired bootstrap evidence and gates are carried through unchanged. Corrected p-values are explicitly marked unavailable when the supplied evaluator does not provide them.
+
+CLI:
+
+```bash
+python -m bitcoin_ai.research_comparison --controlled state/controlled-result.json --evidence state/fresh-evidence.json --output state/research-comparison.json
+```
+
+The output is comparison-only, research-only, and has no execution authority. It does not rerun a holdout, mutate a ledger, calculate new significance tests, or authorize a trade. A favorable result means only that the existing evidence supports further human review; it is not a profitability claim or trading recommendation.
