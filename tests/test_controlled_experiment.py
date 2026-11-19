@@ -153,3 +153,35 @@ def test_rejects_caller_interval_override_that_conflicts_with_plan(tmp_path):
         )
     assert not (tmp_path / "registry.json").exists()
     assert not (tmp_path / "holdouts.json").exists()
+
+
+def test_completed_experiment_emits_reproducibility_receipt(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    import bitcoin_ai.controlled_experiment as module
+    monkeypatch.setattr(module, "run_strategy_lab", fake_lab)
+    result = run_preregistered_experiment(
+        fixtures(), candidate_registry_path=tmp_path / "registry.json",
+        holdout_ledger_path=tmp_path / "holdouts.json",
+        registered_at="2026-01-01T00:00:00+00:00",
+        bootstrap_trials=250, seed=19,
+    )
+    receipt = result["reproducibility_receipt"]
+    assert receipt["schema_version"] == 1
+    assert receipt["plan_id"] == result["plan_id"]
+    assert receipt["dataset_fingerprint"] == result["plan"]["dataset_fingerprint"]
+    assert receipt["code_revision"] == "abc123"
+    assert receipt["run_parameters"]["bootstrap_trials"] == 250
+    assert receipt["run_parameters"]["seed"] == 19
+    assert receipt["run_parameters"]["interval_seconds"] == 60
+    report_hash = hashlib.sha256(json.dumps(
+        result["research_report"], sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode()).hexdigest()
+    assert receipt["research_report_sha256"] == report_hash
+    core = {key: value for key, value in receipt.items() if key not in {"receipt_id", "limitations"}}
+    expected = hashlib.sha256(json.dumps(
+        core, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode()).hexdigest()
+    assert receipt["receipt_id"] == expected
+    assert receipt["registry_head_hash"]
+    assert receipt["limitations"]
