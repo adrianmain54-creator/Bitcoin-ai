@@ -1,5 +1,4 @@
 from datetime import datetime, timezone, timedelta
-import copy
 
 import pytest
 
@@ -43,7 +42,7 @@ def test_prepares_deterministic_plan_and_typed_bars_without_side_effects():
         task, report, train_bars=50, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
     )
     second = prepare_scheduled_experiment(
-        task, report, train_bars=50, test_bars=10, code_revision="abc123"
+        task, report, train_bars=50, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
     )
     assert first["status"] == "plan_prepared"
     assert first["plan_id"] == second["plan_id"]
