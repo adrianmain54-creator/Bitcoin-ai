@@ -184,6 +184,9 @@ def prepare_research_dataset(
             "source_count": len(sources),
             "sources": names,
             "aligned_candles": len(reference),
+            # A successful cross-check has no threshold breaches; malformed or
+            # divergent source histories are rejected before this report exists.
+            "divergent_candles": 0,
             "maximum_close_deviation": max_deviation,
             "tolerance": float(max_price_deviation),
         },
