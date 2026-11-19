@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 
 import pytest
 
@@ -131,7 +132,7 @@ def test_rejects_plan_row_count_mismatch_before_registration(tmp_path):
 
 def test_rejects_interior_bar_timestamp_cadence_mismatch_before_registration(tmp_path):
     prepared = fixtures()
-    prepared["bars"][55].timestamp += timedelta(seconds=30)
+    prepared["bars"][55] = replace(prepared["bars"][55], timestamp=prepared["bars"][55].timestamp + timedelta(seconds=30))
     with pytest.raises(ControlledExperimentError, match="exact interval cadence"):
         run_preregistered_experiment(
             prepared, candidate_registry_path=tmp_path / "registry.json",
