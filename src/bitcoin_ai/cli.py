@@ -451,11 +451,14 @@ def main() -> None:
                 experiment = json.loads(args.experiment_report.read_text(encoding="utf-8"))
                 if not isinstance(experiment, dict) or experiment.get("status") != "completed_research_only":
                     raise FreshEvidenceError("experiment report is not a completed controlled run")
+                window = experiment.get("test_window")
+                if not isinstance(window, dict):
+                    raise FreshEvidenceError("experiment report is missing its exact test window")
                 identity = {
                     "plan_id": experiment.get("plan_id"),
                     "dataset_fingerprint": experiment.get("dataset_fingerprint"),
-                    "test_start": experiment.get("test_window", {}).get("start"),
-                    "test_end": experiment.get("test_window", {}).get("end"),
+                    "test_start": window.get("start"),
+                    "test_end": window.get("end"),
                     "code_revision": experiment.get("code_revision"),
                 }
                 names = experiment.get("candidate_names")
