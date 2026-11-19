@@ -75,7 +75,7 @@ def test_rejects_out_of_order_or_invalid_close():
     report["dataset"]["canonical_bars"][4]["close"] = float("nan")
     with pytest.raises(ResearchPlanError, match="finite and positive"):
         prepare_scheduled_experiment(
-            task, report, train_bars=50, test_bars=10, code_revision="abc123"
+            task, report, train_bars=50, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
         )
 
 
