@@ -27,7 +27,7 @@ def _fixtures():
         "status": "prepared", "dataset_fingerprint": fingerprint,
         "holdout_status": "not_assessed",
         "dataset": {
-            "symbol": "BTC-USDT", "interval": "5m", "row_count": 80,
+            "symbol": "BTC-USDT", "interval": "5m", "row_count": len(bars),
             "canonical_bars": bars,
             "cross_source": {
                 "status": "cross_checked",
