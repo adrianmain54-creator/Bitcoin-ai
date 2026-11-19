@@ -280,6 +280,55 @@ def run_preregistered_experiment(
     except CandidateRegistryError as exc:
         raise ControlledExperimentError(f"trial completion failed; inspect registry before retrying: {exc}") from exc
 
+    # A compact receipt binds the immutable plan to the exact evaluation
+    # configuration and canonical research report. This is an integrity aid,
+    # not a signature or proof that an external environment ran this code.
+    try:
+        report_bytes = json.dumps(
+            report, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        registry_after = load_candidate_registry(registry_path)
+    except (TypeError, ValueError, CandidateRegistryError) as exc:
+        raise ControlledExperimentError(
+            f"cannot create reproducibility receipt; inspect the completed registry: {exc}"
+        ) from exc
+    receipt_core = {
+        "schema_version": 1,
+        "experiment_id": experiment_id,
+        "plan_id": prepared["plan_id"],
+        "dataset_fingerprint": fingerprint,
+        "code_revision": revision,
+        "test_window": {"start": start, "end": end},
+        "run_parameters": {
+            "train_bars": plan["train_bars"],
+            "test_bars": plan["test_bars"],
+            "step_bars": plan["test_bars"],
+            "interval_seconds": plan_interval_seconds,
+            "fee_bps": float(costs["fee"]),
+            "slippage_bps": float(costs["slippage"]),
+            "bootstrap_trials": bootstrap_trials,
+            "seed": seed,
+        },
+        "research_report_sha256": hashlib.sha256(report_bytes).hexdigest(),
+        "registry_head_hash": (
+            registry_after["events"][-1]["event_hash"]
+            if registry_after["events"] else None
+        ),
+        "completed_at": completed_at,
+    }
+    receipt_id = hashlib.sha256(json.dumps(
+        receipt_core, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")).hexdigest()
+    reproducibility_receipt = {
+        **receipt_core,
+        "receipt_id": receipt_id,
+        "limitations": [
+            "The hashes detect later changes only when the receipt or trusted copy is retained independently.",
+            "A receipt is not a digital signature, trusted timestamp, or proof that the declared code revision executed.",
+            "Re-running may differ across software, hardware, dependency, or numerical-library versions not captured here.",
+        ],
+    }
+
     return {
         "status": "completed_research_only",
         "experiment_id": experiment_id,
@@ -289,6 +338,7 @@ def run_preregistered_experiment(
         "holdout_reservation": reservation,
         "candidate_family_audit": family_audit,
         "research_report": report,
+        "reproducibility_receipt": reproducibility_receipt,
         "execution_authority": "none",
         "limitations": [
             "The holdout interval was reserved before the research lab evaluated it.",
