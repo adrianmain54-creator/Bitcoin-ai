@@ -37,10 +37,13 @@ jobs:
       - name: Install package
         run: python -m pip install .
       - name: Validate three public BTC-USDT feeds
+        env:
+          MARKET_INTERVAL: ${{ inputs.interval }}
+          MARKET_LIMIT: ${{ inputs.limit }}
         run: >-
           python -m bitcoin_ai.market_data_smoke
-          --interval "${{ inputs.interval }}"
-          --limit "${{ inputs.limit }}"
+          --interval "$MARKET_INTERVAL"
+          --limit "$MARKET_LIMIT"
           --output market-data-smoke-report.json
       - name: Upload market-data report
         if: always() && hashFiles('market-data-smoke-report.json') != ''
