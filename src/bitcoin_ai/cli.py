@@ -288,6 +288,8 @@ def main() -> None:
         try:
             dataset_report = json.loads(args.dataset_report.read_text(encoding="utf-8"))
             previous_report = json.loads(args.previous_research_report.read_text(encoding="utf-8"))
+            if not isinstance(previous_report, dict):
+                raise ResearchSchedulerError("previous research report must be a JSON object")
             if not isinstance(dataset_report, dict) or (
                     dataset_report.get("status") != "prepared"
                     or dataset_report.get("holdout_status") != "not_assessed"):
