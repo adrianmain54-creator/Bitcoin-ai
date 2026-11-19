@@ -289,3 +289,23 @@ def test_research_run_auto_sizes_three_oos_folds_for_actual_row_count(monkeypatc
     cli.main()
     assert captured["train_bars"] == 118
     assert captured["test_bars"] == 60
+
+
+
+def test_research_schedule_rejects_dataset_content_tampering(monkeypatch, tmp_path):
+    dataset_path, previous_path = _schedule_inputs(tmp_path)
+    dataset = json.loads(dataset_path.read_text())
+    dataset["dataset"]["canonical_bars"][10]["volume"] += 1.0
+    dataset_path.write_text(json.dumps(dataset))
+    queue_path = tmp_path / "queue.json"
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-schedule",
+        "--dataset-report", str(dataset_path),
+        "--previous-research-report", str(previous_path),
+        "--source-candidate", "sma:12",
+        "--queue", str(queue_path),
+    ])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 1
+    assert not queue_path.exists()
