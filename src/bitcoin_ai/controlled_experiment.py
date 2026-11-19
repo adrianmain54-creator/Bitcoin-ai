@@ -146,7 +146,7 @@ def run_preregistered_experiment(
     experiment_id = "walk-forward:" + prepared["plan_id"]
     trial_ids = {role: f"{prepared['plan_id']}:{role}" for role in _ROLES}
     candidate_names = {
-        role: f"{plan['candidates'][role]['family']}:{plan['candidates'][role]['lookback']}"
+        role: f"{plan['candidates']['unchanged_source' if role == 'source' else role]['family']}:{plan['candidates']['unchanged_source' if role == 'source' else role]['lookback']}"
         for role in _ROLES
     }
 
