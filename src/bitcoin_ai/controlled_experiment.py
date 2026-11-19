@@ -203,8 +203,8 @@ def run_preregistered_experiment(
         }
 
     candidates = [
-        {"family": plan["candidates"][role]["family"],
-         "lookback": plan["candidates"][role]["lookback"]}
+        {"family": plan["candidates"]["unchanged_source" if role == "source" else role]["family"],
+         "lookback": plan["candidates"]["unchanged_source" if role == "source" else role]["lookback"]}
         for role in _ROLES
     ]
     if expected_interval_seconds is None:
