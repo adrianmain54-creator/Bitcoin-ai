@@ -50,6 +50,11 @@ def verify_comparison_artifact(artifact: dict) -> dict:
                    "proposal_minus_comparator_pct_points", "proposal_doubled_cost_return_pct",
                    "comparator_doubled_cost_return_pct", "proposal_max_drawdown_pct",
                    "comparator_max_drawdown_pct")
+    # Validate canonical JSON before numeric checks so NaN/Infinity are rejected
+    # consistently as non-canonical artifact data.
+    core = {key: value for key, value in artifact.items() if key != "comparison_id"}
+    if artifact["comparison_id"] != _canonical_hash(core):
+        raise ReviewArtifactError("comparison fingerprint does not match artifact contents")
     for role in ("source", "cash"):
         item = comparisons[role]
         if not isinstance(item, dict) or any(key not in item for key in metric_keys):
@@ -60,9 +65,6 @@ def verify_comparison_artifact(artifact: dict) -> dict:
                 raise ReviewArtifactError(f"{role}.{key} must be finite numeric data")
     if not isinstance(artifact["statistical_evidence"], dict) or not isinstance(artifact["limitations"], list):
         raise ReviewArtifactError("statistical evidence or limitations are malformed")
-    core = {key: value for key, value in artifact.items() if key != "comparison_id"}
-    if artifact["comparison_id"] != _canonical_hash(core):
-        raise ReviewArtifactError("comparison fingerprint does not match artifact contents")
     return artifact
 
 
