@@ -48,6 +48,33 @@ def _canonical(value) -> bytes:
                       ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
+def compute_research_dataset_fingerprint(dataset: dict) -> str:
+    """Recompute the canonical prepared-dataset digest from its actual content."""
+    if not isinstance(dataset, dict):
+        raise ResearchIngestionError("dataset must be a mapping")
+    cross_source = dataset.get("cross_source")
+    if not isinstance(cross_source, dict):
+        raise ResearchIngestionError("dataset cross-source metadata is missing")
+    sources = cross_source.get("sources")
+    bars = dataset.get("canonical_bars")
+    if not isinstance(sources, list) or not isinstance(bars, list):
+        raise ResearchIngestionError("dataset source names or canonical bars are missing")
+    material = {
+        "schema_version": dataset.get("schema_version"),
+        "symbol": dataset.get("symbol"),
+        "interval": dataset.get("interval"),
+        "start": dataset.get("start"),
+        "end": dataset.get("end"),
+        "row_count": dataset.get("row_count"),
+        "sources": sources,
+        "canonical_bars": bars,
+    }
+    try:
+        return hashlib.sha256(_canonical(material)).hexdigest()
+    except (TypeError, ValueError) as exc:
+        raise ResearchIngestionError("dataset content cannot be fingerprinted safely") from exc
+
+
 def _number(value, field: str, *, positive: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ResearchIngestionError(f"{field} must be numeric")
@@ -193,17 +220,7 @@ def prepare_research_dataset(
     }
     # Fingerprint dataset identity, not ingestion timing metadata.
     # Source names are sorted above, so caller ordering cannot affect the hash.
-    fingerprint_material = {
-        "schema_version": core["schema_version"],
-        "symbol": core["symbol"],
-        "interval": core["interval"],
-        "start": core["start"],
-        "end": core["end"],
-        "row_count": core["row_count"],
-        "sources": names,
-        "canonical_bars": core["canonical_bars"],
-    }
-    fingerprint = hashlib.sha256(_canonical(fingerprint_material)).hexdigest()
+    fingerprint = compute_research_dataset_fingerprint(core)
     return {
         "status": "prepared",
         "dataset_fingerprint": fingerprint,
