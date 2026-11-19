@@ -18,7 +18,7 @@ from .research_scheduler import load_research_queue
 
 def build_plan_report(
     *, queue_path: str | Path, task_id: str, interval: str = "5m",
-    limit: int = 100, train_bars: int = 50, test_bars: int = 10,
+    limit: int = 101, train_bars: int = 50, test_bars: int = 10,
     code_revision: str, source_family: str, source_lookback: int,
     ingestor=None,
 ) -> dict:
@@ -60,7 +60,7 @@ def main(argv=None) -> int:
     parser.add_argument("--queue", type=Path, required=True)
     parser.add_argument("--task-id", required=True)
     parser.add_argument("--interval", choices=("1m", "5m", "15m", "1h", "1d"), default="5m")
-    parser.add_argument("--limit", type=int, choices=range(20, 301), default=100)
+    parser.add_argument("--limit", type=int, choices=range(20, 301), default=101)
     parser.add_argument("--train-bars", type=int, default=50)
     parser.add_argument("--test-bars", type=int, default=10)
     parser.add_argument("--code-revision", required=True)
