@@ -1,0 +1,52 @@
+name: Public BTC market-data smoke check
+
+on:
+  workflow_dispatch:
+    inputs:
+      interval:
+        description: Candle interval
+        required: true
+        default: 5m
+        type: choice
+        options:
+          - 1m
+          - 5m
+          - 15m
+          - 1h
+          - 1d
+      limit:
+        description: Number of completed candles (20–300)
+        required: true
+        default: "100"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  public-market-data-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: python -m pip install .
+      - name: Validate three public BTC-USDT feeds
+        run: >-
+          python -m bitcoin_ai.market_data_smoke
+          --interval "${{ inputs.interval }}"
+          --limit "${{ inputs.limit }}"
+          --output market-data-smoke-report.json
+      - name: Upload market-data report
+        if: always() && hashFiles('market-data-smoke-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-btc-market-data-report
+          path: market-data-smoke-report.json
+          if-no-files-found: error
+          retention-days: 14
