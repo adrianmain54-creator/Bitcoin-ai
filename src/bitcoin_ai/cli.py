@@ -118,7 +118,7 @@ def main() -> None:
     )
     run_parser.add_argument("--dataset-report", type=Path, required=True)
     run_parser.add_argument("--queue", type=Path, required=True)
-    run_parser.add_argument("--task-id", required=True)
+    run_parser.add_argument("--task-id", help="Exact queued task ID; optional only when the queue contains one task")
     run_parser.add_argument("--source-family", required=True)
     run_parser.add_argument("--source-lookback", type=int, required=True)
     run_parser.add_argument("--train-bars", type=int)
@@ -140,13 +140,17 @@ def main() -> None:
     )
     review_parser.add_argument("--candidate-ledger", type=Path, required=True)
     review_parser.add_argument("--experiment-ledger", type=Path, required=True)
-    review_parser.add_argument("--plan-id", required=True)
-    review_parser.add_argument("--dataset-fingerprint", required=True)
-    review_parser.add_argument("--test-start", required=True, help="Timezone-aware ISO timestamp")
-    review_parser.add_argument("--test-end", required=True, help="Timezone-aware ISO timestamp")
-    review_parser.add_argument("--code-revision", required=True)
-    review_parser.add_argument("--proposal-candidate", required=True, help="Exact registered family:lookback")
-    review_parser.add_argument("--source-candidate", required=True, help="Exact registered family:lookback")
+    review_parser.add_argument(
+        "--experiment-report", type=Path,
+        help="Completed JSON report from research-run; derives all trial and dataset identity",
+    )
+    review_parser.add_argument("--plan-id")
+    review_parser.add_argument("--dataset-fingerprint")
+    review_parser.add_argument("--test-start", help="Timezone-aware ISO timestamp")
+    review_parser.add_argument("--test-end", help="Timezone-aware ISO timestamp")
+    review_parser.add_argument("--code-revision")
+    review_parser.add_argument("--proposal-candidate", help="Exact registered family:lookback")
+    review_parser.add_argument("--source-candidate", help="Exact registered family:lookback")
     review_parser.add_argument("--min-observations", type=int, default=180)
     review_parser.add_argument("--bootstrap-trials", type=int, default=2000)
     review_parser.add_argument("--block-size", type=int, default=5)
@@ -372,12 +376,20 @@ def main() -> None:
             else:
                 train_bars, test_bars = args.train_bars, args.test_bars
             queue_report = load_research_queue(args.queue)
-            task = next(
-                (item for item in queue_report["tasks"] if item.get("task_id") == args.task_id),
-                None,
-            )
-            if task is None:
-                raise ResearchSchedulerError("requested task ID is not present in the validated queue")
+            queued_tasks = queue_report.get("tasks", [])
+            if args.task_id is None:
+                if len(queued_tasks) != 1:
+                    raise ResearchSchedulerError(
+                        "omit --task-id only when the validated queue contains exactly one task"
+                    )
+                task = queued_tasks[0]
+            else:
+                task = next(
+                    (item for item in queued_tasks if item.get("task_id") == args.task_id),
+                    None,
+                )
+                if task is None:
+                    raise ResearchSchedulerError("requested task ID is not present in the validated queue")
             source_label = f"{args.source_family}:{args.source_lookback}"
             if task.get("source_candidate") != source_label:
                 raise ResearchSchedulerError(
@@ -407,6 +419,7 @@ def main() -> None:
                 role: f"{prepared['plan']['candidates']['unchanged_source' if role == 'source' else role]['family']}:{prepared['plan']['candidates']['unchanged_source' if role == 'source' else role]['lookback']}"
                 for role in ("proposal", "source", "cash")
             }
+            result["task_id"] = task["task_id"]
             result["dataset_fingerprint"] = prepared["plan"]["dataset_fingerprint"]
             result["test_window"] = prepared["plan"]["test_window"]
             result["code_revision"] = prepared["plan"]["code_revision"]
@@ -428,24 +441,62 @@ def main() -> None:
 
     if args.command == "research-review":
         try:
+            if args.experiment_report is not None:
+                if any((args.plan_id, args.dataset_fingerprint, args.test_start,
+                        args.test_end, args.code_revision, args.proposal_candidate,
+                        args.source_candidate)):
+                    raise FreshEvidenceError(
+                        "use --experiment-report or explicit identity flags, not both"
+                    )
+                experiment = json.loads(args.experiment_report.read_text(encoding="utf-8"))
+                if not isinstance(experiment, dict) or experiment.get("status") != "completed_research_only":
+                    raise FreshEvidenceError("experiment report is not a completed controlled run")
+                identity = {
+                    "plan_id": experiment.get("plan_id"),
+                    "dataset_fingerprint": experiment.get("dataset_fingerprint"),
+                    "test_start": experiment.get("test_window", {}).get("start"),
+                    "test_end": experiment.get("test_window", {}).get("end"),
+                    "code_revision": experiment.get("code_revision"),
+                }
+                names = experiment.get("candidate_names")
+                trial_ids = experiment.get("registered_trials")
+                if not isinstance(names, dict) or not isinstance(trial_ids, dict):
+                    raise FreshEvidenceError("experiment report is missing candidate or trial identities")
+                if set(trial_ids) != {"proposal", "source", "cash"}:
+                    raise FreshEvidenceError("experiment report has incomplete registered trial IDs")
+                proposal_name, source_name = names.get("proposal"), names.get("source")
+                if not isinstance(proposal_name, str) or not isinstance(source_name, str):
+                    raise FreshEvidenceError("experiment report has malformed candidate names")
+            else:
+                identity = {
+                    "plan_id": args.plan_id,
+                    "dataset_fingerprint": args.dataset_fingerprint,
+                    "test_start": args.test_start,
+                    "test_end": args.test_end,
+                    "code_revision": args.code_revision,
+                }
+                proposal_name, source_name = args.proposal_candidate, args.source_candidate
+                if any(value is None for value in identity.values()) or not proposal_name or not source_name:
+                    raise FreshEvidenceError("supply all identity flags or use --experiment-report")
+                trial_ids = {
+                    "proposal": f"{identity['plan_id']}:proposal",
+                    "source": f"{identity['plan_id']}:source",
+                    "cash": f"{identity['plan_id']}:cash",
+                }
             report = evaluate_completed_experiment(
                 args.candidate_ledger,
                 args.experiment_ledger,
-                plan_id=args.plan_id,
-                trial_ids={
-                    "proposal": f"{args.plan_id}:proposal",
-                    "source": f"{args.plan_id}:source",
-                    "cash": f"{args.plan_id}:cash",
-                },
+                plan_id=identity["plan_id"],
+                trial_ids=trial_ids,
                 expected_candidate_names={
-                    "proposal": args.proposal_candidate,
-                    "source": args.source_candidate,
+                    "proposal": proposal_name,
+                    "source": source_name,
                     "cash": "cash:2",
                 },
-                dataset_fingerprint=args.dataset_fingerprint,
-                test_start=args.test_start,
-                test_end=args.test_end,
-                code_revision=args.code_revision,
+                dataset_fingerprint=identity["dataset_fingerprint"],
+                test_start=identity["test_start"],
+                test_end=identity["test_end"],
+                code_revision=identity["code_revision"],
                 min_observations=args.min_observations,
                 bootstrap_trials=args.bootstrap_trials,
                 block_size=args.block_size,
