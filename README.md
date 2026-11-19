@@ -260,3 +260,8 @@ print(result["market_data"])
 ```
 
 The 300-bar / 99-train / 20-test example creates 200 out-of-sample observations across ten fixed rolling folds, subject to the runner's exact-window checks. Use the actual code revision and a genuinely unused dataset/window. A repeated fingerprint/window is expected to be rejected by the holdout ledger. Network access is triggered only by this explicit function call; it uses public market-data endpoints, never account credentials or order APIs. Provider outage, staleness, incomplete candles, or cross-venue divergence aborts before preregistration. Even `eligible_for_human_review` is not an instruction to trade.
+
+
+### Manual public market-data smoke check
+
+A manual GitHub Actions run named **Public BTC market-data smoke check** executes `python -m bitcoin_ai.market_data_smoke` against the public Binance, Kraken, and Coinbase BTC-USDT candle endpoints. It validates the three-source dataset and uploads a compact JSON provenance report. This is intentionally an ingestion-only check: it does not create scheduler tasks, run strategy evaluation, reserve or consume a holdout, write candidate/ledger state, or access trading endpoints. A successful run proves only that the requested market-data snapshot passed the configured checks at that time; it says nothing about strategy profitability. Provider failures stop the workflow rather than falling back to fewer venues.
