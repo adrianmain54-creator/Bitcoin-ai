@@ -283,11 +283,14 @@ bitcoin-ai research-run \
   --output experiment.json
 ```
 
-For 300 input candles, 119 training bars and 60-bar test windows create
-three contiguous folds and 180 paired OOS returns. For other dataset lengths,
-choose sizes so `row_count - 1 - train_bars` is a positive multiple of
-`test_bars`; the runner rejects unused trailing observations. The default
-fetch limit is 300 and the default run sizes match that shape.
+When both sizing flags are omitted, the runner automatically uses three
+60-bar test folds and calculates the training window from the actual fetched
+row count (300 rows gives 119 training bars; 299 rows gives 118). This retains
+180 paired OOS returns even when a provider returns one fewer completed candle.
+If you supply both sizing flags manually, choose sizes so
+`row_count - 1 - train_bars` is a positive multiple of `test_bars`; the
+runner rejects unused trailing observations. The selected training window must
+also exceed every candidate's lookback.
 
 Finally, use the exact plan identity and window written to `experiment.json`
 with `research-review`. The scheduler abstains on anomalies or uncertain
