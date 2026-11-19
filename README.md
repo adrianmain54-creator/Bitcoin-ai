@@ -256,6 +256,19 @@ the selected source candidate. Then fetch a fresh three-venue dataset:
 bitcoin-ai research-fetch --interval 1h --limit 300 --output btc-dataset.json
 ```
 
+Create a research queue from the validated dataset and the untested
+improvement hypotheses in a previous `research-lab --json` report. The
+scheduler recalculates the causal market context and OHLCV anomaly screen; it
+abstains instead of queuing when anomalies or integrity uncertainty are found:
+
+```bash
+bitcoin-ai research-schedule \
+  --dataset-report btc-dataset.json \
+  --previous-research-report prior-research.json \
+  --source-candidate "agent_council:48" \
+  --queue research-queue.json --json
+```
+
 Queue only hypotheses whose current market context passes the causal regime,
 OHLCV anomaly, and three-source integrity checks:
 
