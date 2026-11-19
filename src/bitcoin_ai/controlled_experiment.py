@@ -207,6 +207,9 @@ def run_preregistered_experiment(
          "lookback": plan["candidates"][role]["lookback"]}
         for role in _ROLES
     ]
+    if expected_interval_seconds is None:
+        interval_seconds = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
+        expected_interval_seconds = interval_seconds.get(plan.get("interval"))
     report = run_strategy_lab(
         bars,
         train_bars=plan["train_bars"],
@@ -220,9 +223,7 @@ def run_preregistered_experiment(
         expected_interval_seconds=expected_interval_seconds,
         previous_holdout_experiments=prior_holdouts,
     )
-    if report.get("holdout_reuse_audit", {}).get("status") != (
-        "no_prior_ledger_supplied" if not prior_holdouts else "no_overlap_detected"
-    ):
+    if report.get("holdout_reuse_audit", {}).get("status") != "no_overlap_detected":
         raise ControlledExperimentError("research lab holdout audit disagrees with the pre-run reservation")
 
     fixed = report.get("fixed_candidate_oos_comparison", {}).get("candidates", {})
