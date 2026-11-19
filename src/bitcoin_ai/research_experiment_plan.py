@@ -83,14 +83,23 @@ def prepare_scheduled_experiment(
     provenance = dataset_report.get("provenance")
     if not isinstance(dataset, dict) or not isinstance(provenance, dict):
         raise ResearchPlanError("dataset or provenance metadata is missing")
-    if dataset.get("symbol") != "BTC-USDT" or dataset.get("cross_source", {}).get("status") != "cross_checked":
+    cross_source = dataset.get("cross_source")
+    if (dataset.get("symbol") != "BTC-USDT" or not isinstance(cross_source, dict)
+            or cross_source.get("status") != "cross_checked"):
         raise ResearchPlanError("only cross-checked BTC-USDT research datasets are accepted")
-    sources = dataset.get("cross_source", {}).get("sources")
-    if not isinstance(sources, list) or len(set(sources)) < 3:
+    sources = cross_source.get("sources")
+    if (not isinstance(sources, list) or len(sources) < 3
+            or any(not isinstance(source, str) or not source for source in sources)
+            or len(set(sources)) != len(sources)):
         raise ResearchPlanError("at least three unique aligned sources are required")
     bars = dataset.get("canonical_bars")
     if not isinstance(bars, list) or len(bars) != dataset.get("row_count") or len(bars) < 4:
         raise ResearchPlanError("canonical bar count is invalid")
+    if (cross_source.get("aligned_candles") != len(bars)
+            or cross_source.get("divergent_candles") != 0):
+        raise ResearchPlanError("dataset cross-source audit is incomplete or divergent")
+    if dataset.get("start") != bars[0].get("timestamp") or dataset.get("end") != bars[-1].get("timestamp"):
+        raise ResearchPlanError("dataset start/end metadata does not match canonical bars")
     if isinstance(train_bars, bool) or not isinstance(train_bars, int) or train_bars < 3:
         raise ResearchPlanError("train_bars must be an integer >= 3")
     if isinstance(test_bars, bool) or not isinstance(test_bars, int) or test_bars < 3:
