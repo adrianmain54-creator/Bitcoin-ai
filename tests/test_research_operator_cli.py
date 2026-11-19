@@ -151,3 +151,84 @@ def test_research_run_rejects_source_label_mismatch(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 1
+
+
+
+def _schedule_inputs(tmp_path, *, anomalous=False):
+    from datetime import datetime, timedelta, timezone
+
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    bars = []
+    for index in range(30):
+        high = 500.0 if anomalous and index == 29 else 101.0
+        bars.append({
+            "timestamp": (start + timedelta(minutes=5 * index)).isoformat(),
+            "open": 100.0, "high": high, "low": 99.0,
+            "close": 100.0, "volume": 10.0,
+        })
+    dataset = {
+        "status": "prepared", "holdout_status": "not_assessed",
+        "dataset": {
+            "canonical_bars": bars,
+            "cross_source": {
+                "status": "cross_checked",
+                "sources": ["binance", "kraken", "coinbase"],
+                "aligned_candles": 30,
+                "divergent_candles": 0,
+            },
+        },
+    }
+    previous = {
+        "strategy_improvement_proposals": {
+            "sma:12": {
+                "status": "hypotheses_only",
+                "proposals": [{
+                    "candidate": {"family": "momentum", "lookback": 5},
+                    "hypothesis": "Test a distinct candidate.",
+                    "trigger": "drawdown_threshold_exceeded",
+                }],
+            },
+        },
+    }
+    dataset_path = tmp_path / "dataset.json"
+    previous_path = tmp_path / "previous.json"
+    dataset_path.write_text(json.dumps(dataset))
+    previous_path.write_text(json.dumps(previous))
+    return dataset_path, previous_path
+
+
+def test_research_schedule_builds_context_and_queues_only_distinct_hypotheses(monkeypatch, tmp_path):
+    from bitcoin_ai.research_scheduler import load_research_queue
+
+    dataset_path, previous_path = _schedule_inputs(tmp_path)
+    queue_path = tmp_path / "queue.json"
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-schedule",
+        "--dataset-report", str(dataset_path),
+        "--previous-research-report", str(previous_path),
+        "--source-candidate", "sma:12",
+        "--queue", str(queue_path),
+        "--observed-at", "2026-01-02T00:00:00+00:00",
+        "--json",
+    ])
+    cli.main()
+    loaded = load_research_queue(queue_path)
+    assert loaded["task_count"] == 1
+    assert loaded["tasks"][0]["candidate"] == {"family": "momentum", "lookback": 5}
+    assert loaded["tasks"][0]["source_candidate"] == "sma:12"
+
+
+def test_research_schedule_abstains_on_ohlcv_anomaly(monkeypatch, tmp_path, capsys):
+    dataset_path, previous_path = _schedule_inputs(tmp_path, anomalous=True)
+    queue_path = tmp_path / "queue.json"
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-schedule",
+        "--dataset-report", str(dataset_path),
+        "--previous-research-report", str(previous_path),
+        "--source-candidate", "sma:12",
+        "--queue", str(queue_path),
+    ])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "abstained" in output
+    assert not queue_path.exists()
