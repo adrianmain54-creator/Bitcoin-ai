@@ -98,7 +98,9 @@ def prepare_scheduled_experiment(
     if (cross_source.get("aligned_candles") != len(bars)
             or cross_source.get("divergent_candles") != 0):
         raise ResearchPlanError("dataset cross-source audit is incomplete or divergent")
-    if dataset.get("start") != bars[0].get("timestamp") or dataset.get("end") != bars[-1].get("timestamp"):
+    if (not isinstance(bars[0], dict) or not isinstance(bars[-1], dict)
+            or dataset.get("start") != bars[0].get("timestamp")
+            or dataset.get("end") != bars[-1].get("timestamp")):
         raise ResearchPlanError("dataset start/end metadata does not match canonical bars")
     if isinstance(train_bars, bool) or not isinstance(train_bars, int) or train_bars < 3:
         raise ResearchPlanError("train_bars must be an integer >= 3")
