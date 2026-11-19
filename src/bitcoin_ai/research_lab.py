@@ -742,6 +742,12 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 _equity_curve(comparison_stress_returns[(family, lookback)]),
                 periods_per_year,
             ),
+            # Exact aligned streams are retained for the independent fresh-evidence
+            # evaluator; scalar summaries cannot substitute for paired observations.
+            "oos_returns": list(candidate_returns),
+            "oos_returns_at_2x_cost": list(candidate_stress_returns),
+            "oos_regimes": list(oos_regimes),
+            "oos_timestamps": list(oos_timestamps),
         }
     strategy_failure_reports = {}
     for family, lookback in normalized:
