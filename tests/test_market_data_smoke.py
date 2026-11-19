@@ -1,5 +1,7 @@
+import json
 from datetime import datetime, timezone
 
+from bitcoin_ai import market_data_smoke
 from bitcoin_ai.market_data_smoke import run_market_data_smoke_check
 
 
@@ -50,3 +52,19 @@ def test_smoke_check_propagates_provider_failure_without_fallback():
         assert "venue unavailable" in str(exc)
     else:
         raise AssertionError("provider failure must fail closed")
+
+
+def test_cli_writes_machine_readable_report(monkeypatch, tmp_path):
+    client = FakeIngestor()
+    monkeypatch.setattr(market_data_smoke, "PublicResearchMarketIngestor", lambda: client)
+    output = tmp_path / "report.json"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["bitcoin-ai-market-data-smoke", "--interval", "5m", "--limit", "100", "--output", str(output)],
+    )
+
+    assert market_data_smoke.main() == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["status"] == "market_data_validated"
+    assert report["dataset_fingerprint"] == "f" * 64
+    assert report["strategy_evaluation"] == "not_run"
