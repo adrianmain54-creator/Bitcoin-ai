@@ -232,3 +232,31 @@ The evidence gate requires a minimum paired sample, distinct preregistered roles
 `bitcoin_ai.research_cycle.run_scheduled_research_cycle` is the single-call orchestration boundary for a caller-supplied queued task and an already validated three-source dataset report. It prepares the deterministic plan, preregisters and reserves the holdout through the controlled runner, then sends a completed experiment to the strict fresh-evidence bridge. A reused/rejected holdout stops before evidence review. The result includes the experiment and evidence-review reports for inspection.
 
 This is an explicit function call, not a background worker: it does not poll the scheduler queue, fetch market data, or run continuously. It requires caller-supplied registry/ledger paths and registration timestamp. All stages remain historical research only. Even `eligible_for_human_review` grants no strategy promotion, paper execution, or live order authority.
+
+
+### Public-market-data to research-review entry point
+
+`bitcoin_ai.public_market_cycle.run_public_market_research_cycle` is the explicit, caller-invoked entry point for using current public BTC-USDT candles in the research workflow. It fetches completed candles from Binance, Kraken, and Coinbase, requires all three providers to pass the strict shared ingestion gate, then forwards the resulting fingerprinted dataset into the scheduled plan, controlled walk-forward, and fresh-evidence review stages.
+
+Example:
+
+```python
+from bitcoin_ai.public_market_cycle import run_public_market_research_cycle
+
+result = run_public_market_research_cycle(
+    queued_task,
+    code_revision="the-exact-git-commit-being-reviewed",
+    source_strategy_definition={"family": "sma", "lookback": 48},
+    candidate_registry_path="state/candidate_registry.json",
+    holdout_ledger_path="state/holdout_ledger.json",
+    registered_at="2026-11-19T00:00:00+00:00",
+    interval="5m",
+    limit=300,
+    train_bars=99,
+    test_bars=20,
+)
+print(result["status"])
+print(result["market_data"])
+```
+
+The 300-bar / 99-train / 20-test example creates 200 out-of-sample observations across ten fixed rolling folds, subject to the runner's exact-window checks. Use the actual code revision and a genuinely unused dataset/window. A repeated fingerprint/window is expected to be rejected by the holdout ledger. Network access is triggered only by this explicit function call; it uses public market-data endpoints, never account credentials or order APIs. Provider outage, staleness, incomplete candles, or cross-venue divergence aborts before preregistration. Even `eligible_for_human_review` is not an instruction to trade.
