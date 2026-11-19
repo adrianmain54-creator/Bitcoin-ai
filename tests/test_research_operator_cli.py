@@ -173,7 +173,7 @@ def _schedule_inputs(tmp_path, *, anomalous=False):
         "row_count": len(bars), "canonical_bars": bars,
         "cross_source": {
             "status": "cross_checked",
-            "sources": ["binance", "kraken", "coinbase"],
+            "sources": ["binance", "coinbase", "kraken"],
             "aligned_candles": 30, "divergent_candles": 0,
         },
     }
