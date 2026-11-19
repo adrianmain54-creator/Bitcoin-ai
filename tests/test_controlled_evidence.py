@@ -6,17 +6,30 @@ from bitcoin_ai.controlled_evidence import evaluate_controlled_experiment
 from bitcoin_ai.candidate_registry import audit_candidate_family
 from bitcoin_ai.fresh_evidence import FreshEvidenceError
 import pytest
+import hashlib
+import json
 
 
 FP = "a" * 64
 START = "2026-01-01T00:00:00+00:00"
 END = "2026-07-01T00:00:00+00:00"
 REV = "deadbeef"
-PLAN_ID = "plan-123"
-EXPERIMENT_ID = "walk-forward:" + PLAN_ID
 
 
 def build_result(tmp_path):
+    plan = {
+        "dataset_fingerprint": FP, "code_revision": REV,
+        "test_window": {"start": START, "end": END},
+        "candidates": {
+            "proposal": {"family": "agent_council_25", "lookback": 48},
+            "unchanged_source": {"family": "agent_council", "lookback": 48},
+            "cash": {"family": "cash", "lookback": 2},
+        },
+    }
+    plan_id = hashlib.sha256(json.dumps(
+        plan, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")).hexdigest()
+    experiment_id = "walk-forward:" + plan_id
     registry = tmp_path / "registry.json"
     ledger = tmp_path / "holdouts.json"
     ids = {"proposal": "p", "source": "s", "cash": "c"}
@@ -45,13 +58,13 @@ def build_result(tmp_path):
         )
         complete_candidate_trial(
             registry, trial_id=ids[role],
-            outcome={"observations": 200, "plan_id": PLAN_ID, "role": role,
+            outcome={"observations": 200, "plan_id": plan_id, "role": role,
                      "returns": returns[names[role]],
                      "doubled_cost_returns": stress[names[role]]},
             completed_at="2026-07-02T00:00:00+00:00",
         )
     reservation = audit_and_append_holdout_records(ledger, [{
-        "experiment_id": EXPERIMENT_ID,
+        "experiment_id": experiment_id,
         "dataset_fingerprint": FP,
         "test_start": START,
         "test_end": END,
@@ -62,16 +75,10 @@ def build_result(tmp_path):
     result = {
         "status": "completed_research_only",
         "execution_authority": "none",
-        "experiment_id": EXPERIMENT_ID,
-        "plan": {
-            "dataset_fingerprint": FP, "code_revision": REV,
-            "test_window": {"start": START, "end": END},
-            "candidates": {
-                "proposal": {"family": "agent_council_25", "lookback": 48},
-                "unchanged_source": {"family": "agent_council", "lookback": 48},
-                "cash": {"family": "cash", "lookback": 2},
-            },
-        },
+        "experiment_id": experiment_id,
+        "plan_id": plan_id,
+        "experiment_id": experiment_id,
+        "plan": plan,
         "registered_trials": ids,
         "holdout_reservation": reservation,
         "candidate_family_audit": family,
