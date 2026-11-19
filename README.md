@@ -269,17 +269,6 @@ bitcoin-ai research-schedule \
   --queue research-queue.json --json
 ```
 
-Queue only hypotheses whose current market context passes the causal regime,
-OHLCV anomaly, and three-source integrity checks:
-
-```bash
-bitcoin-ai research-schedule \
-  --dataset-report btc-dataset.json \
-  --previous-research-report prior-research.json \
-  --source-candidate "agent_council:48" \
-  --queue research-queue.json --json
-```
-
 Select a queued task ID from the output and run the preregistered experiment:
 
 ```bash
