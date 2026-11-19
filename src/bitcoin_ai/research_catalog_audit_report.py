@@ -75,6 +75,11 @@ def verify_catalog_audit_report(report: dict, catalog: dict) -> dict:
     }
     if not isinstance(report, dict) or set(report) != required:
         raise CatalogAuditReportError("audit report fields are incomplete or unexpected")
+    # Check the content fingerprint before semantic constraints so any changed
+    # field is consistently reported as an integrity failure.
+    core = {key: value for key, value in report.items() if key != "report_id"}
+    if report["report_id"] != _digest(core):
+        raise CatalogAuditReportError("audit report fingerprint does not match")
     if report["schema_version"] != 1 or report["report_type"] != "read_only_research_catalog_audit":
         raise CatalogAuditReportError("unsupported audit report type or version")
     if report["status"] != "verified" or report["execution_authority"] != "none" or report["read_only"] is not True:
@@ -94,9 +99,6 @@ def verify_catalog_audit_report(report: dict, catalog: dict) -> dict:
         or report["bundles"] != expected_bundles
     ):
         raise CatalogAuditReportError("audit report does not match the supplied catalog")
-    core = {key: value for key, value in report.items() if key != "report_id"}
-    if report["report_id"] != _digest(core):
-        raise CatalogAuditReportError("audit report fingerprint does not match")
     return {
         "status": "verified",
         "report_id": report["report_id"],
