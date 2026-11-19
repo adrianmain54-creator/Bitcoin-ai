@@ -38,7 +38,7 @@ def test_research_fetch_writes_validated_dataset_report(monkeypatch, tmp_path, c
 
 def test_research_run_uses_validated_queue_and_persists_report(monkeypatch, tmp_path):
     dataset_path = tmp_path / "dataset.json"
-    dataset_path.write_text(json.dumps({"status": "prepared"}))
+    dataset_path.write_text(json.dumps({"status": "prepared", "dataset": {"canonical_bars": [{} for _ in range(81)]}}))
     queue_task = {
         "task_id": "task-123", "event_type": "task_queued",
         "status": "queued", "execution_authority": "none",
@@ -105,7 +105,7 @@ def test_research_run_uses_validated_queue_and_persists_report(monkeypatch, tmp_
 
 def test_research_run_rejects_missing_task_before_preregistration(monkeypatch, tmp_path):
     dataset_path = tmp_path / "dataset.json"
-    dataset_path.write_text("{}")
+    dataset_path.write_text(json.dumps({"dataset": {"canonical_bars": [{} for _ in range(81)]}}))
     monkeypatch.setattr(cli, "load_research_queue", lambda path: {"tasks": []})
     monkeypatch.setattr(
         cli, "run_preregistered_experiment",
