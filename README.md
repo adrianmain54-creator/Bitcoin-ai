@@ -323,3 +323,21 @@ python -m bitcoin_ai.research_review --input state/research-comparison.json --ou
 ```
 
 The renderer verifies the comparison fingerprint and required provenance/metric fields before producing a self-contained static page. Untrusted text is HTML-escaped; no scripts, external assets, network requests, or interactive trading controls are included. Missing or malformed metrics fail closed. The page displays candidate definitions, after-cost comparisons, existing statistical evidence, limitations, and links by ID to the plan and reproducibility receipt. It is a read-only research aid, not a trading dashboard or execution interface.
+
+
+### End-to-end research review bundle (research-only)
+
+Once a controlled research result and its matching read-only fresh-evidence result have already been produced, the post-run bundle command validates both, writes the comparison JSON, renders the static HTML review, and publishes a SHA-256 manifest last as the bundle-complete marker:
+
+```bash
+python -m bitcoin_ai.research_review_pipeline \
+  --controlled state/controlled-result.json \
+  --evidence state/fresh-evidence.json \
+  --comparison-output state/research-comparison.json \
+  --html-output state/research-review.html \
+  --manifest-output state/research-review-manifest.json
+```
+
+The manifest binds the comparison ID, plan ID, reproducibility receipt ID, source report digest, and exact output hashes. Each output is staged in its destination directory and individually published with an atomic replace; the manifest is published last so its presence indicates that the bundle publication completed. Filesystem replacement across multiple files is not a single transaction, so an interrupted publication can leave comparison/HTML outputs without a manifest. Re-run only from the same already-completed inputs to republish; this step never reruns a holdout or evaluator.
+
+This is a local, deterministic post-run artifact step. It makes no network requests and does not alter source artifacts, candidate registries, holdout ledgers, paper state, or trading accounts. All output remains research-only with no execution authority.
