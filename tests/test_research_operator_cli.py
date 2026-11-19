@@ -238,3 +238,54 @@ def test_research_schedule_abstains_on_ohlcv_anomaly(monkeypatch, tmp_path, caps
     output = capsys.readouterr().out
     assert "abstained" in output
     assert not queue_path.exists()
+
+
+
+def test_research_run_auto_sizes_three_oos_folds_for_actual_row_count(monkeypatch, tmp_path):
+    dataset_path = tmp_path / "dataset.json"
+    dataset_path.write_text(json.dumps({
+        "dataset": {"canonical_bars": [{} for _ in range(299)]},
+    }))
+    task = {
+        "task_id": "task-123", "source_candidate": "sma:12",
+    }
+    monkeypatch.setattr(cli, "load_research_queue", lambda path: {"tasks": [task]})
+    prepared = {
+        "plan_id": "plan-auto",
+        "plan": {
+            "dataset_fingerprint": "c" * 64,
+            "test_window": {"start": "2026-01-01T00:00:00+00:00", "end": "2026-02-01T00:00:00+00:00"},
+            "code_revision": "deadbeef",
+            "candidates": {
+                "proposal": {"family": "momentum", "lookback": 5},
+                "unchanged_source": {"family": "sma", "lookback": 12},
+                "cash": {"family": "cash", "lookback": 2},
+            },
+        },
+    }
+    captured = {}
+
+    def fake_prepare(task, dataset, **kwargs):
+        captured.update(kwargs)
+        return prepared
+
+    monkeypatch.setattr(cli, "prepare_scheduled_experiment", fake_prepare)
+    monkeypatch.setattr(
+        cli, "run_preregistered_experiment",
+        lambda *args, **kwargs: {"status": "completed_research_only"},
+    )
+    output = tmp_path / "experiment.json"
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-run",
+        "--dataset-report", str(dataset_path),
+        "--queue", str(tmp_path / "queue.json"),
+        "--task-id", "task-123",
+        "--source-family", "sma", "--source-lookback", "12",
+        "--candidate-ledger", str(tmp_path / "candidate.json"),
+        "--experiment-ledger", str(tmp_path / "holdout.json"),
+        "--code-revision", "deadbeef",
+        "--output", str(output),
+    ])
+    cli.main()
+    assert captured["train_bars"] == 118
+    assert captured["test_bars"] == 60
