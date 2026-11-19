@@ -7,6 +7,8 @@ and verified by the evaluator before that one matching reservation is excluded.
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import json
 
 from .candidate_registry import audit_candidate_family, load_candidate_registry
 from .fresh_evidence import FreshEvidenceError, evaluate_fresh_candidate
@@ -33,6 +35,13 @@ def evaluate_controlled_experiment(
     plan = controlled_result.get("plan")
     if not isinstance(plan, dict):
         raise FreshEvidenceError("controlled experiment plan is missing")
+    computed_plan_id = hashlib.sha256(json.dumps(
+        plan, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")).hexdigest()
+    if controlled_result.get("plan_id") != computed_plan_id:
+        raise FreshEvidenceError("controlled experiment plan fingerprint does not match its contents")
+    if controlled_result.get("experiment_id") != "walk-forward:" + computed_plan_id:
+        raise FreshEvidenceError("controlled experiment ID does not match its immutable plan")
     fingerprint = plan.get("dataset_fingerprint")
     revision = plan.get("code_revision")
     window = plan.get("test_window")
@@ -43,8 +52,9 @@ def evaluate_controlled_experiment(
         raise FreshEvidenceError("controlled experiment candidate definitions are incomplete")
 
     trial_ids = controlled_result.get("registered_trials")
-    if not isinstance(trial_ids, dict) or set(trial_ids) != set(_ROLES):
-        raise FreshEvidenceError("controlled experiment trial IDs are incomplete")
+    if (not isinstance(trial_ids, dict) or set(trial_ids) != set(_ROLES)
+            or any(trial_ids[role] != f"{computed_plan_id}:{role}" for role in _ROLES)):
+        raise FreshEvidenceError("controlled experiment trial IDs do not match the immutable plan")
     expected_names = {}
     for role in _ROLES:
         candidate = candidates["unchanged_source" if role == "source" else role]
@@ -102,11 +112,12 @@ def evaluate_controlled_experiment(
         returns[role] = result.get("returns")
         doubled[role] = result.get("doubled_cost_returns")
         outcome = completions[trial_ids[role]]["outcome"]
-        if (outcome.get("plan_id") != controlled_result.get("plan_id")
+        if (not isinstance(returns[role], list) or not isinstance(doubled[role], list)
+                or outcome.get("plan_id") != computed_plan_id
                 or outcome.get("role") != role
                 or outcome.get("returns") != returns[role]
                 or outcome.get("doubled_cost_returns") != doubled[role]
-                or outcome.get("observations") != len(returns[role]) if isinstance(returns[role], list) else True):
+                or outcome.get("observations") != len(returns[role])):
             raise FreshEvidenceError(f"{role} report streams do not match the immutable completed trial outcome")
 
     return evaluate_fresh_candidate(
