@@ -261,6 +261,7 @@ def run_preregistered_experiment(
         "status": "completed_research_only",
         "experiment_id": experiment_id,
         "plan_id": prepared["plan_id"],
+        "plan": plan,
         "registered_trials": trial_ids,
         "holdout_reservation": reservation,
         "candidate_family_audit": family_audit,
