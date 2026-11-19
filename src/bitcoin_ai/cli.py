@@ -19,6 +19,7 @@ from .research_market_ingestion import PublicResearchMarketIngestor, ResearchMar
 from .research_scheduler import ResearchSchedulerError, load_research_queue, scan_and_queue_research
 from .market_anomaly import MarketAnomalyError, audit_ohlcv_anomalies
 from .market_regime_intelligence import MarketRegimeIntelligenceError, classify_market_conditions
+from .research_ingestion import ResearchIngestionError, compute_research_dataset_fingerprint
 from .research_experiment_plan import ResearchPlanError, prepare_scheduled_experiment
 from .controlled_experiment import ControlledExperimentError, run_preregistered_experiment
 from datetime import datetime, timezone
@@ -287,13 +288,26 @@ def main() -> None:
         try:
             dataset_report = json.loads(args.dataset_report.read_text(encoding="utf-8"))
             previous_report = json.loads(args.previous_research_report.read_text(encoding="utf-8"))
-            if (dataset_report.get("status") != "prepared"
+            if not isinstance(dataset_report, dict) or (
+                    dataset_report.get("status") != "prepared"
                     or dataset_report.get("holdout_status") != "not_assessed"):
                 raise ResearchSchedulerError("dataset must be prepared with holdout_status=not_assessed")
-            dataset = dataset_report.get("dataset", {})
+            dataset = dataset_report.get("dataset")
+            provenance = dataset_report.get("provenance")
+            if not isinstance(dataset, dict) or not isinstance(provenance, dict):
+                raise ResearchSchedulerError("dataset report or provenance metadata is malformed")
             bars = dataset.get("canonical_bars")
             if not isinstance(bars, list):
                 raise ResearchSchedulerError("dataset report has no canonical OHLCV bars")
+            try:
+                computed_fingerprint = compute_research_dataset_fingerprint(dataset)
+            except ResearchIngestionError as exc:
+                raise ResearchSchedulerError(f"dataset fingerprint validation failed: {exc}") from exc
+            if (computed_fingerprint != dataset_report.get("dataset_fingerprint")
+                    or provenance.get("dataset_fingerprint") != computed_fingerprint):
+                raise ResearchSchedulerError("dataset fingerprint does not match its canonical content")
+            if any(not isinstance(bar, dict) or not isinstance(bar.get("timestamp"), str) for bar in bars):
+                raise ResearchSchedulerError("dataset contains malformed candle timestamps")
             anomaly_candles = []
             for bar in bars:
                 stamp = datetime.fromisoformat(bar["timestamp"].replace("Z", "+00:00"))
@@ -323,7 +337,7 @@ def main() -> None:
             )
         except (
             ResearchSchedulerError, MarketAnomalyError, MarketRegimeIntelligenceError,
-            OSError, ValueError, KeyError, TypeError,
+            ResearchIngestionError, OSError, ValueError, KeyError, TypeError,
         ) as exc:
             parser.exit(1, f"bitcoin-ai: research scheduling refused: {exc}\\n")
         if args.json:
