@@ -292,9 +292,21 @@ If you supply both sizing flags manually, choose sizes so
 runner rejects unused trailing observations. The selected training window must
 also exceed every candidate's lookback.
 
-Finally, use the exact plan identity and window written to `experiment.json`
-with `research-review`. The scheduler abstains on anomalies or uncertain
-market context; the runner reserves the holdout before evaluating, so a failed
-attempt must not be retried on the same plan/window. All commands remain
-historical research only. A review pass is human-review eligibility, not a
-profit forecast, strategy promotion, or authorization to trade.
+Finally, review the completed run directly from its saved report; this
+derives the exact trial IDs, candidate names, fingerprint, test window, and
+code revision so they cannot be mistyped:
+
+```bash
+bitcoin-ai research-review \
+  --candidate-ledger candidate-trials.json \
+  --experiment-ledger holdout-history.json \
+  --experiment-report experiment.json --json
+```
+
+If the validated queue contains exactly one task, `research-run` can also
+select it without `--task-id`; when multiple tasks exist, specify the exact
+task ID. The scheduler abstains on anomalies or uncertain market context; the
+runner reserves the holdout before evaluating, so a failed attempt must not be
+retried on the same plan/window. All commands remain historical research only.
+A review pass is human-review eligibility, not a profit forecast, strategy
+promotion, or authorization to trade.
