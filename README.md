@@ -293,3 +293,10 @@ The output binds the task, dataset fingerprint, three sources, candidate roles, 
 A plan-only JSON can now be independently checked with `python -m bitcoin_ai.research_plan_artifact --input state/research-plan.json --output state/research-plan-audit.json`. The audit recomputes the canonical plan SHA-256 and validates the task identity, BTC-USDT dataset fingerprint, three unique source venues, row count and exact walk-forward boundary, timezone-aware test window, code revision, distinct proposal/source/cash definitions, and fee/slippage assumptions. It emits a compact provenance report without raw candles.
 
 This is an integrity check, not a cryptographic signature or trusted timestamp: it detects edits that do not also replace the digest, but cannot prove that the dataset was fresh or unused, that source venues were authentic, or that the stated code revision actually ran. It performs no network fetch, experiment, holdout reservation, ledger mutation, paper-state change, or order execution.
+
+
+### Reproducibility receipts for completed experiments
+
+Successful controlled research runs now include a `reproducibility_receipt` in the returned JSON. It binds the plan and dataset fingerprints, code revision, exact test window, interval, train/test/step sizes, fee and slippage assumptions, bootstrap trial count, random seed, canonical research-report SHA-256, final candidate-registry hash-chain head, and completion timestamp. The receipt itself has a canonical SHA-256 identifier.
+
+Retain the receipt alongside the research report and plan. Hashes help detect later edits when a trusted copy is retained independently; they are not signatures, trusted timestamps, or proof that a particular code revision executed. Dependency and hardware versions are not fully captured, so bit-for-bit reruns are not guaranteed. No execution authority is added.
