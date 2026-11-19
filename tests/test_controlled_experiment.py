@@ -89,7 +89,7 @@ def test_rejects_second_attempt_on_reserved_interval(tmp_path, monkeypatch):
 def test_rejects_tampered_plan_before_any_ledger_write(tmp_path):
     prepared = fixtures()
     prepared["plan"]["code_revision"] = "tampered"
-    with pytest.raises(ControlledExperimentError, match="fingerprint"):
+    with pytest.raises(ControlledExperimentError, match="provenance audit"):
         run_preregistered_experiment(
             prepared, candidate_registry_path=tmp_path / "registry.json",
             holdout_ledger_path=tmp_path / "holdouts.json",
@@ -102,7 +102,7 @@ def test_rejects_tampered_plan_before_any_ledger_write(tmp_path):
 def test_rejects_nonterminal_test_window_before_registration(tmp_path):
     prepared = fixtures()
     prepared["bars"].pop()
-    with pytest.raises(ControlledExperimentError, match="trailing observations"):
+    with pytest.raises(ControlledExperimentError, match="row_count"):
         run_preregistered_experiment(
             prepared, candidate_registry_path=tmp_path / "registry.json",
             holdout_ledger_path=tmp_path / "holdouts.json",
