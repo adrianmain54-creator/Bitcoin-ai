@@ -272,7 +272,7 @@ def main() -> None:
                 max_price_deviation=args.max_price_deviation,
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+            args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         except (ResearchMarketFetchError, OSError, ValueError) as exc:
             parser.exit(1, f"bitcoin-ai: historical data fetch refused: {exc}\\n")
         print(
@@ -396,7 +396,7 @@ def main() -> None:
             result["code_revision"] = prepared["plan"]["code_revision"]
             result["plan_id"] = prepared["plan_id"]
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+            args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         except (
             ControlledExperimentError, ResearchPlanError, ResearchSchedulerError,
             ResearchMarketFetchError, OSError, ValueError,
