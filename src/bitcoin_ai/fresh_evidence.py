@@ -77,6 +77,7 @@ def evaluate_fresh_candidate(
     doubled_cost_returns: dict[str, Sequence[float]], regimes: Sequence[str],
     min_observations: int = 180, bootstrap_trials: int = 2000,
     block_size: int = 5, seed: int = 20261118,
+    reservation_experiment_id: str | None = None,
 ) -> dict:
     """Compare proposal with unchanged source and cash on one fresh paired window."""
     roles = {"proposal", "source", "cash"}
@@ -136,6 +137,21 @@ def evaluate_fresh_candidate(
             "trial_id": trial_id, "candidate_name": definition["candidate_name"],
             "definition_hash": event["definition_hash"], "registered_at": event["registered_at"],
         }
+
+    if reservation_experiment_id is not None:
+        if not isinstance(reservation_experiment_id, str) or not reservation_experiment_id.strip():
+            raise FreshEvidenceError("reservation_experiment_id must be non-empty")
+        own = [item for item in prior if item.get("experiment_id") == reservation_experiment_id]
+        if len(own) != 1:
+            raise FreshEvidenceError("the experiment's exact holdout reservation is missing or ambiguous")
+        reservation = own[0]
+        if (reservation.get("dataset_fingerprint") != dataset_fingerprint
+                or _stamp(reservation.get("test_start"), "reservation test_start") != start
+                or _stamp(reservation.get("test_end"), "reservation test_end") != end):
+            raise FreshEvidenceError("the experiment's holdout reservation does not match its registered window")
+        # Exclude only this experiment's own pre-evaluation reservation. Every
+        # other record remains in the audit and can still reject overlapping reuse.
+        prior = [item for item in prior if item is not reservation]
 
     proposed_record = {
         "experiment_id": "fresh-evaluation:" + hashlib.sha256(
@@ -222,3 +238,76 @@ def evaluate_fresh_candidate(
             "Passing means human review only; no promotion, paper execution, or live orders are authorized.",
         ],
     }
+
+
+def evaluate_completed_experiment(
+    registry_path: str | Path, holdout_ledger_path: str | Path, *,
+    plan_id: str, trial_ids: dict[str, str],
+    expected_candidate_names: dict[str, str], dataset_fingerprint: str,
+    test_start: str, test_end: str, code_revision: str,
+    min_observations: int = 180, bootstrap_trials: int = 2000,
+    block_size: int = 5, seed: int = 20261118,
+) -> dict:
+    """Evaluate the exact paired streams recorded by a completed controlled run.
+
+    The run's own exact holdout reservation is recognized, but all other ledger
+    records remain active reuse checks. No synthetic or scalar-only evidence is
+    accepted, and this function never changes either ledger.
+    """
+    if not isinstance(plan_id, str) or not plan_id.strip():
+        raise FreshEvidenceError("plan_id is required")
+    roles = {"proposal", "source", "cash"}
+    if not isinstance(trial_ids, dict) or set(trial_ids) != roles:
+        raise FreshEvidenceError("trial_ids must identify proposal, source, and cash")
+    try:
+        registry = load_candidate_registry(registry_path)
+    except CandidateRegistryError as exc:
+        raise FreshEvidenceError(f"candidate registry failed integrity validation: {exc}") from exc
+    completions = {
+        event["trial_id"]: event
+        for item in registry["events"]
+        if (event := item["event"])["type"] == "completed"
+    }
+    outcomes = {}
+    shared_regimes = shared_timestamps = None
+    for role in ("proposal", "source", "cash"):
+        completion = completions.get(trial_ids[role])
+        if completion is None:
+            raise FreshEvidenceError(f"{role} trial has no completed outcome")
+        outcome = completion.get("outcome")
+        if not isinstance(outcome, dict) or outcome.get("role") != role:
+            raise FreshEvidenceError(f"{role} completed outcome has the wrong role")
+        if outcome.get("plan_id") != plan_id:
+            raise FreshEvidenceError(f"{role} completed outcome belongs to a different plan")
+        returns = outcome.get("oos_returns")
+        doubled = outcome.get("oos_returns_at_2x_cost")
+        regimes = outcome.get("oos_regimes")
+        timestamps = outcome.get("oos_timestamps")
+        if not isinstance(regimes, list) or not isinstance(timestamps, list):
+            raise FreshEvidenceError(f"{role} outcome is missing aligned regime/timestamp evidence")
+        if shared_regimes is None:
+            shared_regimes, shared_timestamps = regimes, timestamps
+        elif regimes != shared_regimes or timestamps != shared_timestamps:
+            raise FreshEvidenceError("completed candidate outcomes do not share identical OOS dates and regimes")
+        outcomes[role] = (returns, doubled)
+    if not shared_timestamps or len(shared_timestamps) != len(shared_regimes):
+        raise FreshEvidenceError("completed experiment has no aligned OOS timestamps")
+    parsed_timestamps = [_stamp(value, "OOS timestamp") for value in shared_timestamps]
+    if any(parsed_timestamps[i] <= parsed_timestamps[i - 1] for i in range(1, len(parsed_timestamps))):
+        raise FreshEvidenceError("OOS timestamps must be strictly increasing")
+    start, end = _stamp(test_start, "test_start"), _stamp(test_end, "test_end")
+    if parsed_timestamps[0] <= start or parsed_timestamps[-1] != end:
+        raise FreshEvidenceError("OOS timestamps do not exactly terminate at the registered test window")
+    return evaluate_fresh_candidate(
+        registry_path, holdout_ledger_path,
+        trial_ids=trial_ids,
+        expected_candidate_names=expected_candidate_names,
+        dataset_fingerprint=dataset_fingerprint,
+        test_start=test_start, test_end=test_end, code_revision=code_revision,
+        returns={role: outcomes[role][0] for role in roles},
+        doubled_cost_returns={role: outcomes[role][1] for role in roles},
+        regimes=shared_regimes,
+        min_observations=min_observations,
+        bootstrap_trials=bootstrap_trials, block_size=block_size, seed=seed,
+        reservation_experiment_id=f"walk-forward:{plan_id}",
+    )
