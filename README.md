@@ -286,3 +286,10 @@ python -m bitcoin_ai.research_plan_cli \
 ```
 
 The output binds the task, dataset fingerprint, three sources, candidate roles, costs, code revision, and exact terminal walk-forward test-window specification. The row count must end exactly on a test-fold boundary; extra trailing observations are rejected before a plan is written. Proposal, unchanged source, and cash definitions must also be distinct. It intentionally omits raw typed bars from the portable artifact. This command only prepares a plan: it does not preregister candidates, reserve/consume a holdout, run a backtest, mutate paper state, or place orders. A successful plan is not evidence of strategy performance or holdout freshness. Use the controlled preregistration/evaluation path only as a separate, explicitly reviewed step.
+
+
+### Portable research-plan provenance audit (research-only)
+
+A plan-only JSON can now be independently checked with `python -m bitcoin_ai.research_plan_artifact --input state/research-plan.json --output state/research-plan-audit.json`. The audit recomputes the canonical plan SHA-256 and validates the task identity, BTC-USDT dataset fingerprint, three unique source venues, row count and exact walk-forward boundary, timezone-aware test window, code revision, distinct proposal/source/cash definitions, and fee/slippage assumptions. It emits a compact provenance report without raw candles.
+
+This is an integrity check, not a cryptographic signature or trusted timestamp: it detects edits that do not also replace the digest, but cannot prove that the dataset was fresh or unused, that source venues were authentic, or that the stated code revision actually ran. It performs no network fetch, experiment, holdout reservation, ledger mutation, paper-state change, or order execution.
