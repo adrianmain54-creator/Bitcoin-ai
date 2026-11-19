@@ -59,6 +59,27 @@ def compute_research_dataset_fingerprint(dataset: dict) -> str:
     bars = dataset.get("canonical_bars")
     if not isinstance(sources, list) or not isinstance(bars, list):
         raise ResearchIngestionError("dataset source names or canonical bars are missing")
+    if dataset.get("schema_version") != 1:
+        raise ResearchIngestionError("unsupported prepared dataset schema")
+    if (not isinstance(sources, list) or not sources
+            or any(not isinstance(source, str) or not source for source in sources)
+            or len(set(sources)) != len(sources) or sources != sorted(sources)):
+        raise ResearchIngestionError("dataset source names must be unique, non-empty, and sorted")
+    if (not isinstance(bars, list) or len(bars) < 3
+            or isinstance(dataset.get("row_count"), bool)
+            or dataset.get("row_count") != len(bars)):
+        raise ResearchIngestionError("dataset row count does not match canonical bars")
+    if (not isinstance(dataset.get("symbol"), str) or not dataset["symbol"]
+            or not isinstance(dataset.get("interval"), str) or not dataset["interval"]):
+        raise ResearchIngestionError("dataset symbol or interval is missing")
+    if (not isinstance(bars[0], dict) or not isinstance(bars[-1], dict)
+            or dataset.get("start") != bars[0].get("timestamp")
+            or dataset.get("end") != bars[-1].get("timestamp")):
+        raise ResearchIngestionError("dataset start/end metadata does not match canonical bars")
+    if (cross_source.get("status") != "cross_checked"
+            or cross_source.get("aligned_candles") != len(bars)
+            or cross_source.get("divergent_candles") != 0):
+        raise ResearchIngestionError("dataset cross-source integrity metadata is incomplete")
     material = {
         "schema_version": dataset.get("schema_version"),
         "symbol": dataset.get("symbol"),
