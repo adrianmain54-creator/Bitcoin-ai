@@ -15,6 +15,11 @@ from .walk_forward import walk_forward_sma_backtest
 from .research_lab import run_strategy_lab
 from .holdout_ledger import HoldoutLedgerError, load_holdout_ledger, audit_and_append_holdout_records
 from .fresh_evidence import FreshEvidenceError, evaluate_completed_experiment
+from .research_market_ingestion import PublicResearchMarketIngestor, ResearchMarketFetchError
+from .research_scheduler import ResearchSchedulerError, load_research_queue
+from .research_experiment_plan import ResearchPlanError, prepare_scheduled_experiment
+from .controlled_experiment import ControlledExperimentError, run_preregistered_experiment
+from datetime import datetime, timezone
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -83,6 +88,36 @@ def main() -> None:
     lab_parser.add_argument("--candidate-ledger", type=Path, help="Durable pre-registered candidate trial ledger JSON path (single writer)")
     lab_parser.add_argument("--code-revision", help="Exact source-control revision used for this research run; required with --candidate-ledger")
     lab_parser.add_argument("--json", action="store_true")
+
+    fetch_parser = subparsers.add_parser(
+        "research-fetch", help="Fetch and validate three-source BTC-USDT historical candles",
+    )
+    fetch_parser.add_argument("--interval", choices=["1m", "5m", "15m", "1h", "1d"], default="5m")
+    fetch_parser.add_argument("--limit", type=int, default=100)
+    fetch_parser.add_argument("--max-age-seconds", type=int, default=900)
+    fetch_parser.add_argument("--max-price-deviation", type=float, default=0.01)
+    fetch_parser.add_argument("--output", type=Path, required=True, help="Destination JSON dataset report")
+
+    run_parser = subparsers.add_parser(
+        "research-run", help="Run one queued, preregistered research experiment (no trading)",
+    )
+    run_parser.add_argument("--dataset-report", type=Path, required=True)
+    run_parser.add_argument("--queue", type=Path, required=True)
+    run_parser.add_argument("--task-id", required=True)
+    run_parser.add_argument("--source-family", required=True)
+    run_parser.add_argument("--source-lookback", type=int, required=True)
+    run_parser.add_argument("--train-bars", type=int, default=365)
+    run_parser.add_argument("--test-bars", type=int, default=90)
+    run_parser.add_argument("--fee-bps", type=float, default=10.0)
+    run_parser.add_argument("--slippage-bps", type=float, default=5.0)
+    run_parser.add_argument("--candidate-ledger", type=Path, required=True)
+    run_parser.add_argument("--experiment-ledger", type=Path, required=True)
+    run_parser.add_argument("--code-revision", required=True)
+    run_parser.add_argument("--registered-at", help="Optional timezone-aware ISO timestamp; defaults to current UTC")
+    run_parser.add_argument("--bootstrap-trials", type=int, default=500)
+    run_parser.add_argument("--seed", type=int, default=7)
+    run_parser.add_argument("--expected-interval-seconds", type=int)
+    run_parser.add_argument("--output", type=Path, required=True, help="Destination JSON experiment report")
 
     review_parser = subparsers.add_parser(
         "research-review",
@@ -212,6 +247,79 @@ def main() -> None:
             print("Block bootstrap:", json.dumps(result["bootstrap"], sort_keys=True))
             for fold in result["folds"]:
                 print(f"Fold {fold['test_start']} to {fold['test_end']}: {fold['selected_family']} / {fold['selected_lookback']}")
+        return
+
+    if args.command == "research-fetch":
+        try:
+            report = PublicResearchMarketIngestor().fetch_and_prepare(
+                interval=args.interval, limit=args.limit,
+                max_age_seconds=args.max_age_seconds,
+                max_price_deviation=args.max_price_deviation,
+            )
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+        except (ResearchMarketFetchError, OSError, ValueError) as exc:
+            parser.exit(1, f"bitcoin-ai: historical data fetch refused: {exc}\\n")
+        print(
+            f"Prepared {report['dataset']['row_count']} aligned BTC-USDT candles "
+            f"from {report['provenance']['source_count']} sources. "
+            f"Dataset fingerprint: {report['dataset_fingerprint']}"
+        )
+        print(f"Saved validated dataset report to {args.output}")
+        print("Holdout status remains not_assessed; no strategy evaluation was run.")
+        return
+
+    if args.command == "research-run":
+        try:
+            dataset_report = json.loads(args.dataset_report.read_text(encoding="utf-8"))
+            queue_report = load_research_queue(args.queue)
+            task = next(
+                (item for item in queue_report["tasks"] if item.get("task_id") == args.task_id),
+                None,
+            )
+            if task is None:
+                raise ResearchSchedulerError("requested task ID is not present in the validated queue")
+            prepared = prepare_scheduled_experiment(
+                task, dataset_report,
+                train_bars=args.train_bars, test_bars=args.test_bars,
+                code_revision=args.code_revision,
+                source_strategy_definition={
+                    "family": args.source_family,
+                    "lookback": args.source_lookback,
+                },
+                fee_bps=args.fee_bps, slippage_bps=args.slippage_bps,
+            )
+            registered_at = args.registered_at or datetime.now(timezone.utc).isoformat()
+            result = run_preregistered_experiment(
+                prepared,
+                candidate_registry_path=args.candidate_ledger,
+                holdout_ledger_path=args.experiment_ledger,
+                registered_at=registered_at,
+                bootstrap_trials=args.bootstrap_trials,
+                seed=args.seed,
+                expected_interval_seconds=args.expected_interval_seconds,
+            )
+            result["candidate_names"] = {
+                role: f"{prepared['plan']['candidates']['unchanged_source' if role == 'source' else role]['family']}:{prepared['plan']['candidates']['unchanged_source' if role == 'source' else role]['lookback']}"
+                for role in ("proposal", "source", "cash")
+            }
+            result["dataset_fingerprint"] = prepared["plan"]["dataset_fingerprint"]
+            result["test_window"] = prepared["plan"]["test_window"]
+            result["code_revision"] = prepared["plan"]["code_revision"]
+            result["plan_id"] = prepared["plan_id"]
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+        except (
+            ControlledExperimentError, ResearchPlanError, ResearchSchedulerError,
+            ResearchMarketFetchError, OSError, ValueError,
+        ) as exc:
+            parser.exit(1, f"bitcoin-ai: controlled research run refused: {exc}\\n")
+        print(f"Research run status: {result['status']}")
+        print(f"Plan ID: {result['plan_id']}")
+        print(f"Saved full research report to {args.output}")
+        print("Research only: no paper account mutation, strategy promotion, or exchange orders.")
+        if result["status"] != "completed_research_only":
+            print("The holdout attempt may remain recorded; do not retry the same plan or interval.")
         return
 
     if args.command == "research-review":
