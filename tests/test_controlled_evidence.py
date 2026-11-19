@@ -16,7 +16,7 @@ END = "2026-07-01T00:00:00+00:00"
 REV = "deadbeef"
 
 
-def build_result(tmp_path):
+def build_result(tmp_path, *, incomplete=False):
     plan = {
         "dataset_fingerprint": FP, "code_revision": REV,
         "test_window": {"start": START, "end": END},
@@ -32,7 +32,7 @@ def build_result(tmp_path):
     experiment_id = "walk-forward:" + plan_id
     registry = tmp_path / "registry.json"
     ledger = tmp_path / "holdouts.json"
-    ids = {"proposal": "p", "source": "s", "cash": "c"}
+    ids = {role: f"{plan_id}:{role}" for role in ("proposal", "source", "cash")}
     names = {
         "proposal": "agent_council_25:48",
         "source": "agent_council:48",
@@ -56,13 +56,14 @@ def build_result(tmp_path):
             test_start=START, test_end=END,
             registered_at="2025-12-01T00:00:00+00:00",
         )
-        complete_candidate_trial(
-            registry, trial_id=ids[role],
-            outcome={"observations": 200, "plan_id": plan_id, "role": role,
-                     "returns": returns[names[role]],
-                     "doubled_cost_returns": stress[names[role]]},
-            completed_at="2026-07-02T00:00:00+00:00",
-        )
+        if not (incomplete and role == "source"):
+            complete_candidate_trial(
+                registry, trial_id=ids[role],
+                outcome={"observations": 200, "plan_id": plan_id, "role": role,
+                         "returns": returns[names[role]],
+                         "doubled_cost_returns": stress[names[role]]},
+                completed_at="2026-07-02T00:00:00+00:00",
+            )
     reservation = audit_and_append_holdout_records(ledger, [{
         "experiment_id": experiment_id,
         "dataset_fingerprint": FP,
@@ -77,7 +78,6 @@ def build_result(tmp_path):
         "execution_authority": "none",
         "experiment_id": experiment_id,
         "plan_id": plan_id,
-        "experiment_id": experiment_id,
         "plan": plan,
         "registered_trials": ids,
         "holdout_reservation": reservation,
@@ -109,8 +109,7 @@ def test_completed_controlled_run_bridges_exact_reserved_interval(tmp_path):
 
 
 def test_bridge_rejects_missing_or_incomplete_family_audit(tmp_path):
-    result, registry, ledger = build_result(tmp_path)
-    result["candidate_family_audit"]["status"] = "review_required"
+    result, registry, ledger = build_result(tmp_path, incomplete=True)
     with pytest.raises(FreshEvidenceError, match="family audit is not complete"):
         evaluate_controlled_experiment(
             result, candidate_registry_path=registry, holdout_ledger_path=ledger,
@@ -120,7 +119,7 @@ def test_bridge_rejects_missing_or_incomplete_family_audit(tmp_path):
 def test_bridge_rejects_mismatched_reservation_and_streams(tmp_path):
     result, registry, ledger = build_result(tmp_path)
     result["experiment_id"] = "other-experiment"
-    with pytest.raises(FreshEvidenceError, match="reservation is missing or ambiguous"):
+    with pytest.raises(FreshEvidenceError, match="experiment ID does not match"):
         evaluate_controlled_experiment(
             result, candidate_registry_path=registry, holdout_ledger_path=ledger,
         )
