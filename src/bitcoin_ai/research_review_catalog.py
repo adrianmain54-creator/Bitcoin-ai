@@ -121,7 +121,7 @@ def write_review_catalog(bundle_paths: Iterable[tuple[str | Path, str | Path, st
     if destination.resolve() in source_paths:
         raise ReviewCatalogError("catalog output must not overwrite a source bundle")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(catalog, indent=2, sort_keys=True, allow_nan=False) + "\\n"
+    payload = json.dumps(catalog, indent=2, sort_keys=True, allow_nan=False) + "\n"
     destination.write_text(payload, encoding="utf-8")
     return verify_review_catalog(catalog)
 
