@@ -279,7 +279,6 @@ def test_research_run_auto_sizes_three_oos_folds_for_actual_row_count(monkeypatc
         "bitcoin-ai", "research-run",
         "--dataset-report", str(dataset_path),
         "--queue", str(tmp_path / "queue.json"),
-        "--task-id", "task-123",
         "--source-family", "sma", "--source-lookback", "12",
         "--candidate-ledger", str(tmp_path / "candidate.json"),
         "--experiment-ledger", str(tmp_path / "holdout.json"),
@@ -289,6 +288,7 @@ def test_research_run_auto_sizes_three_oos_folds_for_actual_row_count(monkeypatc
     cli.main()
     assert captured["train_bars"] == 118
     assert captured["test_bars"] == 60
+    assert json.loads(output.read_text())["task_id"] == "task-123"
 
 
 

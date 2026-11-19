@@ -76,3 +76,69 @@ def test_research_review_cli_fails_closed_on_evidence_error(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 1
+
+
+
+def test_research_review_cli_derives_identity_from_completed_experiment_report(monkeypatch, tmp_path):
+    experiment = {
+        "status": "completed_research_only",
+        "plan_id": "plan-456",
+        "dataset_fingerprint": "b" * 64,
+        "test_window": {
+            "start": "2026-01-01T00:00:00+00:00",
+            "end": "2026-02-01T00:00:00+00:00",
+        },
+        "code_revision": "revision-456",
+        "candidate_names": {
+            "proposal": "momentum:5",
+            "source": "sma:12",
+            "cash": "cash:2",
+        },
+        "registered_trials": {
+            "proposal": "plan-456:proposal",
+            "source": "plan-456:source",
+            "cash": "plan-456:cash",
+        },
+    }
+    report_path = tmp_path / "experiment.json"
+    report_path.write_text(json.dumps(experiment))
+    captured = {}
+
+    def fake_evaluate(*paths, **kwargs):
+        captured["paths"] = paths
+        captured["kwargs"] = kwargs
+        return {
+            "status": "rejected_or_insufficient",
+            "provenance": {"observations": 100},
+            "comparisons": {},
+        }
+
+    monkeypatch.setattr(cli, "evaluate_completed_experiment", fake_evaluate)
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-review",
+        "--candidate-ledger", "candidate-trials.json",
+        "--experiment-ledger", "holdout-history.json",
+        "--experiment-report", str(report_path),
+        "--json",
+    ])
+    cli.main()
+    assert captured["kwargs"]["plan_id"] == "plan-456"
+    assert captured["kwargs"]["dataset_fingerprint"] == "b" * 64
+    assert captured["kwargs"]["expected_candidate_names"] == {
+        "proposal": "momentum:5", "source": "sma:12", "cash": "cash:2",
+    }
+    assert captured["kwargs"]["trial_ids"] == experiment["registered_trials"]
+
+
+def test_research_review_cli_rejects_incomplete_experiment_report(monkeypatch, tmp_path):
+    report_path = tmp_path / "experiment.json"
+    report_path.write_text(json.dumps({"status": "rejected_holdout_reuse"}))
+    monkeypatch.setattr(sys, "argv", [
+        "bitcoin-ai", "research-review",
+        "--candidate-ledger", "candidate-trials.json",
+        "--experiment-ledger", "holdout-history.json",
+        "--experiment-report", str(report_path),
+    ])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 1
