@@ -202,3 +202,26 @@ This is deliberately a preparation boundary, not an autonomous experiment runner
 `bitcoin_ai.controlled_experiment.run_preregistered_experiment` executes a prepared plan only after it verifies the plan fingerprint, exact rolling-fold window, three distinct candidate definitions, and explicit cash comparator. It registers immutable proposal/source/cash trial identities, reserves the full test interval in the append-only holdout ledger before running the existing walk-forward research lab, and records each role's fixed-candidate outcome after completion. Repeated plans and overlapping holdout intervals are rejected. Failed runs leave their reservation and incomplete registrations visible; use a genuinely new, unused dataset/window rather than retrying exposed evidence.
 
 This remains historical research only. It does not promote strategies, mutate paper accounts, or place orders. Registry and holdout ledger files require single-writer operation, and cannot prove that no unrecorded external inspection occurred.
+
+
+### Controlled experiment to fresh-evidence review bridge (research-only)
+
+After a controlled experiment completes, `bitcoin_ai.controlled_evidence.evaluate_controlled_experiment` connects its fixed-candidate per-bar return streams to the strict paired fresh-evidence evaluator. The walk-forward report retains aligned base-cost and doubled-cost streams for proposal, unchanged source, and cash, together with the exact OOS regime labels. The runner stores those streams in each append-only candidate completion event so the bridge can verify the supplied report against the hash-chained registry rather than trusting a mutable in-memory summary.
+
+The bridge recomputes the candidate-family audit from the registry, checks the canonical plan fingerprint and deterministic role trial IDs, verifies each completed role and its stored streams, and recognizes only the exact holdout reservation created by that controlled run. The entire holdout ledger is integrity-checked; every other overlapping prior record remains disqualifying. A clean result can reach only `eligible_for_human_review`, never automatic promotion or execution.
+
+Example after obtaining `controlled_result` from `run_preregistered_experiment`:
+
+```python
+from bitcoin_ai.controlled_evidence import evaluate_controlled_experiment
+
+review = evaluate_controlled_experiment(
+    controlled_result,
+    candidate_registry_path="state/candidate_registry.json",
+    holdout_ledger_path="state/holdout_ledger.json",
+)
+print(review["status"])
+print(review["gates"])
+```
+
+The evidence gate requires a minimum paired sample, distinct preregistered roles, exact dataset/code/window identity, a fresh non-overlapping holdout reservation, positive paired bootstrap lower bounds versus both source and cash, at least 95% positive bootstrap samples, positive compounded proposal return under doubled costs, and sufficiently sampled nonnegative doubled-cost regime slices. Bootstrap and regime checks are approximate/descriptive, not forecasts. Registry and ledger files remain single-writer, and a clean ledger cannot prove the absence of external inspection. Passing means human review only; paper-state mutation, strategy promotion, and live orders are not authorized.
