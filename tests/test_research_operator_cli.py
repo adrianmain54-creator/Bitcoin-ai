@@ -33,7 +33,7 @@ def test_research_fetch_writes_validated_dataset_report(monkeypatch, tmp_path, c
     ])
     cli.main()
     assert json.loads(output.read_text()) == report
-    assert "holdout status remains not_assessed" in capsys.readouterr().out
+    assert "Holdout status remains not_assessed" in capsys.readouterr().out
 
 
 def test_research_run_uses_validated_queue_and_persists_report(monkeypatch, tmp_path):
