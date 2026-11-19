@@ -45,6 +45,21 @@ pytest
 
 The optional `--experiment-ledger` file is created at the path you specify. Keep it backed up and do not edit it manually: corruption or hash-chain changes cause the research command to stop rather than silently reset history. Use one research process at a time per ledger file; concurrent writers are not supported. Every run is recorded, including runs that reuse an exposed holdout. A clean overlap audit is not proof of independence or profitability.
 
+### Deterministic catalog audit report
+
+After creating a review catalog, use `bitcoin_ai.research_catalog_audit_report` to reverify the exact original bundle set and emit a deterministic JSON audit report. The report binds the catalog ID and every manifest/comparison/plan/receipt ID plus comparison and HTML SHA-256 hashes. Its report ID detects accidental or unauthorized content changes when compared with a separately retained trusted copy; it is not a digital signature, trusted timestamp, or proof of who created it.
+
+Example:
+
+```bash
+python -m bitcoin_ai.research_catalog_audit_report \
+  --catalog research-catalog.json \
+  --bundle comparison.json review.html manifest.json \
+  --output catalog-audit-report.json
+```
+
+The command fails closed if any bundle is missing, extra, altered, or mismatched. It is read-only with respect to the catalog and source bundles; only the explicitly requested report file is written. Execution authority remains none.
+
 ## Trading development sequence
 
 1. Historical data collection with provenance and validation.
