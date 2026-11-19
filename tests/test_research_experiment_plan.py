@@ -66,7 +66,7 @@ def test_rejects_unsafe_or_inconsistent_inputs(mutation):
     mutation(task, report)
     with pytest.raises(ResearchPlanError):
         prepare_scheduled_experiment(
-            task, report, train_bars=50, test_bars=10, code_revision="abc123"
+            task, report, train_bars=50, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
         )
 
 
