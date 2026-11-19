@@ -51,7 +51,7 @@ def fake_lab(*args, **kwargs):
         for item in candidates
     }
     return {
-        "holdout_reuse_audit": {"status": "no_prior_ledger_supplied"},
+        "holdout_reuse_audit": {"status": "no_overlap_detected"},
         "fixed_candidate_oos_comparison": {"candidates": rows},
     }
 
