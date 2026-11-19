@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import bitcoin_ai.cli as cli
+from bitcoin_ai.research_ingestion import compute_research_dataset_fingerprint
 
 
 def test_research_fetch_writes_validated_dataset_report(monkeypatch, tmp_path, capsys):
@@ -166,17 +167,22 @@ def _schedule_inputs(tmp_path, *, anomalous=False):
             "open": 100.0, "high": high, "low": 99.0,
             "close": 100.0, "volume": 10.0,
         })
+    dataset_core = {
+        "schema_version": 1, "symbol": "BTC-USDT", "interval": "5m",
+        "start": bars[0]["timestamp"], "end": bars[-1]["timestamp"],
+        "row_count": len(bars), "canonical_bars": bars,
+        "cross_source": {
+            "status": "cross_checked",
+            "sources": ["binance", "kraken", "coinbase"],
+            "aligned_candles": 30, "divergent_candles": 0,
+        },
+    }
+    fingerprint = compute_research_dataset_fingerprint(dataset_core)
     dataset = {
         "status": "prepared", "holdout_status": "not_assessed",
-        "dataset": {
-            "canonical_bars": bars,
-            "cross_source": {
-                "status": "cross_checked",
-                "sources": ["binance", "kraken", "coinbase"],
-                "aligned_candles": 30,
-                "divergent_candles": 0,
-            },
-        },
+        "dataset_fingerprint": fingerprint,
+        "provenance": {"dataset_fingerprint": fingerprint},
+        "dataset": dataset_core,
     }
     previous = {
         "strategy_improvement_proposals": {
