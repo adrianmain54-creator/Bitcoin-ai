@@ -7,6 +7,8 @@ from bitcoin_ai.controlled_experiment import (
     ControlledExperimentError,
     run_preregistered_experiment,
 )
+from bitcoin_ai.fresh_evidence import FreshEvidenceError, evaluate_completed_experiment
+from bitcoin_ai.holdout_ledger import audit_and_append_holdout_records
 
 
 def fixtures():
@@ -41,15 +43,28 @@ def fixtures():
 
 
 def fake_lab(*args, **kwargs):
+    bars = args[0]
     candidates = kwargs["candidates"]
-    rows = {
-        f"{item['family']}:{item['lookback']}": {
+    timestamps = [bars[i].timestamp.isoformat() for i in range(51, 81)]
+    regimes = ["uptrend"] * 15 + ["range"] * 15
+    streams = {
+        "momentum:5": ([0.002] * 30, [0.0015] * 30),
+        "sma:12": ([0.0005] * 30, [0.0002] * 30),
+        "cash:2": ([0.0] * 30, [0.0] * 30),
+    }
+    rows = {}
+    for item in candidates:
+        name = f"{item['family']}:{item['lookback']}"
+        returns, doubled = streams[name]
+        rows[name] = {
             "observations": 30, "return_pct": 2.0,
             "excess_return_vs_buy_and_hold_pct_points": 1.0,
             "metrics_at_2x_cost": {"total_return_pct": 0.5},
+            "oos_returns": returns,
+            "oos_returns_at_2x_cost": doubled,
+            "oos_regimes": regimes,
+            "oos_timestamps": timestamps,
         }
-        for item in candidates
-    }
     return {
         "holdout_reuse_audit": {"status": "no_overlap_detected"},
         "fixed_candidate_oos_comparison": {"candidates": rows},
@@ -109,3 +124,58 @@ def test_rejects_nonterminal_test_window_before_registration(tmp_path):
         )
     assert not (tmp_path / "registry.json").exists()
     assert not (tmp_path / "holdouts.json").exists()
+
+
+
+def test_completed_experiment_flows_into_read_only_fresh_evaluator(tmp_path, monkeypatch):
+    import bitcoin_ai.controlled_experiment as module
+    monkeypatch.setattr(module, "run_strategy_lab", fake_lab)
+    prepared = fixtures()
+    registry = tmp_path / "registry.json"
+    ledger = tmp_path / "holdouts.json"
+    result = run_preregistered_experiment(
+        prepared, candidate_registry_path=registry, holdout_ledger_path=ledger,
+        registered_at="2026-01-01T00:00:00+00:00",
+    )
+    names = {"proposal": "momentum:5", "source": "sma:12", "cash": "cash:2"}
+    report = evaluate_completed_experiment(
+        registry, ledger, plan_id=prepared["plan_id"],
+        trial_ids=result["registered_trials"], expected_candidate_names=names,
+        dataset_fingerprint=prepared["plan"]["dataset_fingerprint"],
+        test_start=prepared["plan"]["test_window"]["start"],
+        test_end=prepared["plan"]["test_window"]["end"],
+        code_revision=prepared["plan"]["code_revision"],
+        min_observations=20, bootstrap_trials=200,
+    )
+    assert report["status"] == "eligible_for_human_review"
+    assert report["provenance"]["holdout_freshness"] == "no_overlap_detected"
+    assert report["provenance"]["observations"] == 30
+
+
+def test_completed_experiment_still_rejects_other_overlapping_holdout(tmp_path, monkeypatch):
+    import bitcoin_ai.controlled_experiment as module
+    monkeypatch.setattr(module, "run_strategy_lab", fake_lab)
+    prepared = fixtures()
+    registry = tmp_path / "registry.json"
+    ledger = tmp_path / "holdouts.json"
+    result = run_preregistered_experiment(
+        prepared, candidate_registry_path=registry, holdout_ledger_path=ledger,
+        registered_at="2026-01-01T00:00:00+00:00",
+    )
+    audit_and_append_holdout_records(ledger, [{
+        "experiment_id": "other-inspection",
+        "dataset_fingerprint": prepared["plan"]["dataset_fingerprint"],
+        "test_start": prepared["plan"]["test_window"]["start"],
+        "test_end": prepared["plan"]["test_window"]["end"],
+    }])
+    with pytest.raises(FreshEvidenceError, match="already been used"):
+        evaluate_completed_experiment(
+            registry, ledger, plan_id=prepared["plan_id"],
+            trial_ids=result["registered_trials"],
+            expected_candidate_names={"proposal": "momentum:5", "source": "sma:12", "cash": "cash:2"},
+            dataset_fingerprint=prepared["plan"]["dataset_fingerprint"],
+            test_start=prepared["plan"]["test_window"]["start"],
+            test_end=prepared["plan"]["test_window"]["end"],
+            code_revision=prepared["plan"]["code_revision"],
+            min_observations=20, bootstrap_trials=200,
+        )
