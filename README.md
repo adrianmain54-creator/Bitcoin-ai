@@ -219,3 +219,27 @@ All three completed roles must contain identical OOS timestamps and regime
 labels, and the evaluator uses the recorded paired streams rather than scalar
 summary metrics. A passing result is still only `eligible_for_human_review`;
 it does not authorize promotion, paper execution, or live orders.
+
+
+The completed-evidence gate is also available as a read-only CLI command after a
+controlled experiment finishes. It derives the three deterministic trial IDs
+from the plan ID and verifies the exact completed outcomes in both ledgers:
+
+```bash
+bitcoin-ai research-review \
+  --candidate-ledger candidate-trials.json \
+  --experiment-ledger holdout-history.json \
+  --plan-id "$PLAN_ID" \
+  --dataset-fingerprint "$DATASET_FINGERPRINT" \
+  --test-start "2026-01-01T00:00:00+00:00" \
+  --test-end "2026-07-01T00:00:00+00:00" \
+  --code-revision "$CODE_REVISION" \
+  --proposal-candidate "momentum:5" \
+  --source-candidate "sma:12" \
+  --json
+```
+
+The candidate names, fingerprint, interval, and revision must exactly match the
+preregistered plan. A result of `eligible_for_human_review` is not a trade
+signal or execution authorization; the command cannot promote a strategy or
+change paper/live account state.
