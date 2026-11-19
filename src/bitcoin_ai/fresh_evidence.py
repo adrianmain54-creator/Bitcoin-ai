@@ -77,6 +77,7 @@ def evaluate_fresh_candidate(
     doubled_cost_returns: dict[str, Sequence[float]], regimes: Sequence[str],
     min_observations: int = 180, bootstrap_trials: int = 2000,
     block_size: int = 5, seed: int = 20261118,
+    reservation_experiment_id: str | None = None,
 ) -> dict:
     """Compare proposal with unchanged source and cash on one fresh paired window."""
     roles = {"proposal", "source", "cash"}
@@ -144,8 +145,23 @@ def evaluate_fresh_candidate(
         "dataset_fingerprint": dataset_fingerprint,
         "test_start": start.isoformat(), "test_end": end.isoformat(),
     }
+    # A controlled runner must reserve this exact interval before evaluating it.
+    # Accept only its one exact reservation; all other history remains in the audit.
+    audit_history = prior
+    if reservation_experiment_id is not None:
+        if not isinstance(reservation_experiment_id, str) or not reservation_experiment_id.strip():
+            raise FreshEvidenceError("reservation_experiment_id must be non-empty")
+        matches = [item for item in prior if item["experiment_id"] == reservation_experiment_id]
+        if len(matches) != 1:
+            raise FreshEvidenceError("the controlled experiment reservation is missing or ambiguous")
+        reserved = matches[0]
+        if (reserved["dataset_fingerprint"] != dataset_fingerprint
+                or _stamp(reserved["test_start"], "reserved test_start") != start
+                or _stamp(reserved["test_end"], "reserved test_end") != end):
+            raise FreshEvidenceError("controlled reservation does not match the registered evidence window")
+        audit_history = [item for item in prior if item["experiment_id"] != reservation_experiment_id]
     try:
-        freshness = audit_holdout_reuse(prior, proposed_record)
+        freshness = audit_holdout_reuse(audit_history, proposed_record)
     except HoldoutAuditError as exc:
         raise FreshEvidenceError(f"holdout history is invalid: {exc}") from exc
     if freshness["status"] != "no_overlap_detected":

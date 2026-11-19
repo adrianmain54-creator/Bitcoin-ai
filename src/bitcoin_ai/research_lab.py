@@ -742,6 +742,9 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
                 _equity_curve(comparison_stress_returns[(family, lookback)]),
                 periods_per_year,
             ),
+            # Exact aligned streams are retained for the stricter paired evaluator.
+            "returns": list(candidate_returns),
+            "doubled_cost_returns": list(candidate_stress_returns),
         }
     strategy_failure_reports = {}
     for family, lookback in normalized:
@@ -843,6 +846,8 @@ def run_strategy_lab(bars: list[Bar], *, train_bars: int, test_bars: int,
         "families": sorted({family for family, _ in normalized}),
         "fold_count": len(folds),
         "out_of_sample_returns": len(oos),
+        "out_of_sample_regime_labels": list(oos_regimes),
+        "out_of_sample_timestamps": list(oos_timestamps),
         "out_of_sample_metrics": _metrics(oos, _equity_curve(oos), periods_per_year),
         "out_of_sample_attribution": overall_attribution,
         "agent_council_oos_diagnostics": _agent_council_diagnostics(closes, oos_start_index, oos_end_index),

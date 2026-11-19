@@ -240,6 +240,8 @@ def run_preregistered_experiment(
                     "plan_id": prepared["plan_id"],
                     "role": role,
                     "observations": result.get("observations"),
+                    "returns": result.get("returns"),
+                    "doubled_cost_returns": result.get("doubled_cost_returns"),
                     "return_pct": result.get("return_pct"),
                     "excess_return_vs_buy_and_hold_pct_points": result.get(
                         "excess_return_vs_buy_and_hold_pct_points"
@@ -261,6 +263,7 @@ def run_preregistered_experiment(
         "status": "completed_research_only",
         "experiment_id": experiment_id,
         "plan_id": prepared["plan_id"],
+        "plan": plan,
         "registered_trials": trial_ids,
         "holdout_reservation": reservation,
         "candidate_family_audit": family_audit,
