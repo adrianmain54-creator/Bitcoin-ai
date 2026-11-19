@@ -94,3 +94,15 @@ def test_rejects_too_short_dataset_and_invalid_costs():
             fee_bps=6000, slippage_bps=4000,
             source_strategy_definition={"family": "sma", "lookback": 12},
         )
+
+
+
+def test_rejects_dataset_content_changed_after_fingerprinting():
+    task, report = fixtures()
+    report["dataset"]["canonical_bars"][5]["volume"] += 1.0
+    with pytest.raises(ResearchPlanError, match="fingerprint does not match"):
+        prepare_scheduled_experiment(
+            task, report, train_bars=50, test_bars=10,
+            code_revision="abc123",
+            source_strategy_definition={"family": "sma", "lookback": 12},
+        )
