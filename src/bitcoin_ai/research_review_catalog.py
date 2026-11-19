@@ -113,10 +113,11 @@ def build_review_catalog(bundle_paths: Iterable[tuple[str | Path, str | Path, st
 
 def write_review_catalog(bundle_paths: Iterable[tuple[str | Path, str | Path, str | Path]],
                          output_path: str | Path) -> dict:
-    catalog = build_review_catalog(bundle_paths)
+    bundles = tuple(tuple(bundle) for bundle in bundle_paths)
+    catalog = build_review_catalog(bundles)
     verify_review_catalog(catalog)
     destination = Path(output_path)
-    source_paths = {Path(path).resolve() for bundle in bundle_paths for path in bundle}
+    source_paths = {Path(path).resolve() for bundle in bundles for path in bundle}
     if destination.resolve() in source_paths:
         raise ReviewCatalogError("catalog output must not overwrite a source bundle")
     destination.parent.mkdir(parents=True, exist_ok=True)
