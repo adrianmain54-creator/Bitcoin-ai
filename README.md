@@ -225,3 +225,10 @@ print(review["gates"])
 ```
 
 The evidence gate requires a minimum paired sample, distinct preregistered roles, exact dataset/code/window identity, a fresh non-overlapping holdout reservation, positive paired bootstrap lower bounds versus both source and cash, at least 95% positive bootstrap samples, positive compounded proposal return under doubled costs, and sufficiently sampled nonnegative doubled-cost regime slices. Bootstrap and regime checks are approximate/descriptive, not forecasts. Registry and ledger files remain single-writer, and a clean ledger cannot prove the absence of external inspection. Passing means human review only; paper-state mutation, strategy promotion, and live orders are not authorized.
+
+
+### Explicit end-to-end scheduled research cycle
+
+`bitcoin_ai.research_cycle.run_scheduled_research_cycle` is the single-call orchestration boundary for a caller-supplied queued task and an already validated three-source dataset report. It prepares the deterministic plan, preregisters and reserves the holdout through the controlled runner, then sends a completed experiment to the strict fresh-evidence bridge. A reused/rejected holdout stops before evidence review. The result includes the experiment and evidence-review reports for inspection.
+
+This is an explicit function call, not a background worker: it does not poll the scheduler queue, fetch market data, or run continuously. It requires caller-supplied registry/ledger paths and registration timestamp. All stages remain historical research only. Even `eligible_for_human_review` grants no strategy promotion, paper execution, or live order authority.
