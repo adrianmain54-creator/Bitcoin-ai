@@ -121,8 +121,8 @@ def main() -> None:
     run_parser.add_argument("--task-id", required=True)
     run_parser.add_argument("--source-family", required=True)
     run_parser.add_argument("--source-lookback", type=int, required=True)
-    run_parser.add_argument("--train-bars", type=int, default=119)
-    run_parser.add_argument("--test-bars", type=int, default=60)
+    run_parser.add_argument("--train-bars", type=int)
+    run_parser.add_argument("--test-bars", type=int)
     run_parser.add_argument("--fee-bps", type=float, default=10.0)
     run_parser.add_argument("--slippage-bps", type=float, default=5.0)
     run_parser.add_argument("--candidate-ledger", type=Path, required=True)
@@ -357,6 +357,20 @@ def main() -> None:
     if args.command == "research-run":
         try:
             dataset_report = json.loads(args.dataset_report.read_text(encoding="utf-8"))
+            if not isinstance(dataset_report, dict) or not isinstance(dataset_report.get("dataset"), dict):
+                raise ResearchPlanError("dataset report is malformed")
+            canonical_bars = dataset_report["dataset"].get("canonical_bars")
+            if not isinstance(canonical_bars, list):
+                raise ResearchPlanError("dataset report has no canonical bars")
+            if args.train_bars is None and args.test_bars is None:
+                test_bars = 60
+                train_bars = len(canonical_bars) - 1 - 3 * test_bars
+                if train_bars < 3:
+                    raise ResearchPlanError("dataset is too short for three 60-bar OOS folds")
+            elif args.train_bars is None or args.test_bars is None:
+                raise ResearchPlanError("provide both --train-bars and --test-bars, or omit both for automatic sizing")
+            else:
+                train_bars, test_bars = args.train_bars, args.test_bars
             queue_report = load_research_queue(args.queue)
             task = next(
                 (item for item in queue_report["tasks"] if item.get("task_id") == args.task_id),
@@ -371,7 +385,7 @@ def main() -> None:
                 )
             prepared = prepare_scheduled_experiment(
                 task, dataset_report,
-                train_bars=args.train_bars, test_bars=args.test_bars,
+                train_bars=train_bars, test_bars=test_bars,
                 code_revision=args.code_revision,
                 source_strategy_definition={
                     "family": args.source_family,
