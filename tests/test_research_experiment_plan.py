@@ -7,6 +7,7 @@ from bitcoin_ai.research_experiment_plan import (
     ResearchPlanError,
     prepare_scheduled_experiment,
 )
+from bitcoin_ai.research_ingestion import compute_research_dataset_fingerprint
 
 
 def fixtures():
@@ -16,16 +17,18 @@ def fixtures():
          "high": 102+i, "low": 99+i, "close": 101+i, "volume": 1.0}
         for i in range(80)
     ]
-    fingerprint = "a" * 64
+    dataset = {
+        "schema_version": 1, "symbol": "BTC-USDT", "interval": "1m",
+        "start": bars[0]["timestamp"], "end": bars[-1]["timestamp"],
+        "row_count": len(bars), "canonical_bars": bars,
+        "cross_source": {"status": "cross_checked",
+                         "sources": ["binance", "coinbase", "kraken"],
+                         "aligned_candles": len(bars), "divergent_candles": 0},
+    }
+    fingerprint = compute_research_dataset_fingerprint(dataset)
     report = {
         "status": "prepared", "dataset_fingerprint": fingerprint,
-        "holdout_status": "not_assessed",
-        "dataset": {
-            "symbol": "BTC-USDT", "interval": "1m", "row_count": len(bars),
-            "canonical_bars": bars,
-            "cross_source": {"status": "cross_checked",
-                             "sources": ["binance", "coinbase", "kraken"]},
-        },
+        "holdout_status": "not_assessed", "dataset": dataset,
         "provenance": {"dataset_fingerprint": fingerprint},
     }
     task = {
