@@ -125,7 +125,7 @@ def test_bridge_rejects_mismatched_reservation_and_streams(tmp_path):
         )
     result, registry, ledger = build_result(tmp_path / "second")
     result["research_report"]["fixed_candidate_oos_comparison"]["candidates"]["cash:2"]["returns"].pop()
-    with pytest.raises(FreshEvidenceError, match="not aligned"):
+    with pytest.raises(FreshEvidenceError, match="immutable completed trial outcome"):
         evaluate_controlled_experiment(
             result, candidate_registry_path=registry, holdout_ledger_path=ledger,
             bootstrap_trials=200,
