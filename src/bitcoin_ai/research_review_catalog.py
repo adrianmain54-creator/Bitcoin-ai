@@ -69,6 +69,39 @@ def verify_review_catalog(catalog: dict) -> dict:
     }
 
 
+
+def verify_review_catalog_bundles(
+    catalog: dict,
+    bundle_paths: Iterable[tuple[str | Path, str | Path, str | Path]],
+) -> dict:
+    """Reverify supplied bundle bytes and require an exact match with catalog entries."""
+    structural = verify_review_catalog(catalog)
+    supplied: dict[str, dict] = {}
+    for comparison, page, manifest in bundle_paths:
+        try:
+            result = verify_review_bundle(comparison, page, manifest)
+        except (ReviewBundleAuditError, OSError) as exc:
+            raise ReviewCatalogError(f"bundle reverification failed: {exc}") from exc
+        manifest_id = result["manifest_id"]
+        if manifest_id in supplied:
+            raise ReviewCatalogError("duplicate supplied manifest IDs are not allowed")
+        supplied[manifest_id] = result
+
+    expected = {entry["manifest_id"]: entry for entry in catalog["entries"]}
+    if set(supplied) != set(expected):
+        raise ReviewCatalogError("supplied bundles do not exactly match catalog manifest IDs")
+    fields = (
+        "manifest_id", "comparison_id", "plan_id", "receipt_id",
+        "comparison_sha256", "html_sha256",
+    )
+    for manifest_id, result in supplied.items():
+        actual = {field: result[field] for field in fields}
+        recorded = {field: expected[manifest_id][field] for field in fields}
+        if actual != recorded:
+            raise ReviewCatalogError(f"bundle does not match catalog entry {manifest_id}")
+    return {**structural, "bundle_bytes_reverified": True}
+
+
 def build_review_catalog(bundle_paths: Iterable[tuple[str | Path, str | Path, str | Path]]) -> dict:
     """Verify each supplied bundle and return a deterministic, export-only index.
 
