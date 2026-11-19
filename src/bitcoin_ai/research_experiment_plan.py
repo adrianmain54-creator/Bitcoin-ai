@@ -127,8 +127,27 @@ def prepare_scheduled_experiment(
     except ValueError as exc:
         raise ResearchPlanError("dataset fingerprint must be hexadecimal SHA-256") from exc
 
+    # Mirror the controlled runner's exact rolling-fold boundary. A plan
+    # must not silently include trailing bars that are outside every test fold.
+    cursor = train_bars
+    last_test_index = None
+    while cursor + test_bars < len(normalized):
+        last_test_index = cursor + test_bars
+        cursor += test_bars
+    if last_test_index is None:
+        raise ResearchPlanError("dataset does not contain a complete out-of-sample test fold")
+    if last_test_index != len(normalized) - 1:
+        raise ResearchPlanError(
+            "dataset leaves trailing observations outside the exact walk-forward test window"
+        )
+
+    if len({(candidate["family"], candidate["lookback"]),
+            (source_candidate["family"], source_candidate["lookback"]),
+            ("cash", 2)}) != 3:
+        raise ResearchPlanError("proposal, unchanged source, and cash must be distinct candidates")
+
     test_start = normalized[train_bars].timestamp.isoformat()
-    test_end = normalized[-1].timestamp.isoformat()
+    test_end = normalized[last_test_index].timestamp.isoformat()
     plan_core = {
         "task_id": task["task_id"],
         "dataset_fingerprint": fingerprint,

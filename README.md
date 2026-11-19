@@ -280,9 +280,9 @@ python -m bitcoin_ai.research_plan_cli \
   --code-revision "$(git rev-parse HEAD)" \
   --source-family sma \
   --source-lookback 48 \
-  --interval 5m --limit 100 \
+  --interval 5m --limit 101 \
   --train-bars 50 --test-bars 10 \
   --output state/research-plan.json
 ```
 
-The output binds the task, dataset fingerprint, three sources, candidate roles, costs, code revision, and test-window specification. It intentionally omits raw typed bars from the portable artifact. This command only prepares a plan: it does not preregister candidates, reserve/consume a holdout, run a backtest, mutate paper state, or place orders. A successful plan is not evidence of strategy performance or holdout freshness. Use the controlled preregistration/evaluation path only as a separate, explicitly reviewed step.
+The output binds the task, dataset fingerprint, three sources, candidate roles, costs, code revision, and exact terminal walk-forward test-window specification. The row count must end exactly on a test-fold boundary; extra trailing observations are rejected before a plan is written. Proposal, unchanged source, and cash definitions must also be distinct. It intentionally omits raw typed bars from the portable artifact. This command only prepares a plan: it does not preregister candidates, reserve/consume a holdout, run a backtest, mutate paper state, or place orders. A successful plan is not evidence of strategy performance or holdout freshness. Use the controlled preregistration/evaluation path only as a separate, explicitly reviewed step.

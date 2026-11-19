@@ -20,14 +20,14 @@ def _fixtures():
     bars = [
         {"timestamp": (start + timedelta(minutes=i)).isoformat(),
          "open": 100+i, "high": 102+i, "low": 99+i, "close": 101+i, "volume": 1}
-        for i in range(80)
+        for i in range(81)
     ]
     fingerprint = "a" * 64
     report = {
         "status": "prepared", "dataset_fingerprint": fingerprint,
         "holdout_status": "not_assessed",
         "dataset": {
-            "symbol": "BTC-USDT", "interval": "5m", "row_count": 80,
+            "symbol": "BTC-USDT", "interval": "5m", "row_count": len(bars),
             "canonical_bars": bars,
             "cross_source": {
                 "status": "cross_checked",

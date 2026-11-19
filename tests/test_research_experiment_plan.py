@@ -14,7 +14,7 @@ def fixtures():
     bars = [
         {"timestamp": (start + timedelta(minutes=i)).isoformat(), "open": 100+i,
          "high": 102+i, "low": 99+i, "close": 101+i, "volume": 1.0}
-        for i in range(80)
+        for i in range(81)
     ]
     fingerprint = "a" * 64
     report = {
@@ -46,7 +46,7 @@ def test_prepares_deterministic_plan_and_typed_bars_without_side_effects():
     )
     assert first["status"] == "plan_prepared"
     assert first["plan_id"] == second["plan_id"]
-    assert len(first["bars"]) == 80
+    assert len(first["bars"]) == 81
     assert isinstance(first["bars"][0], Bar)
     assert first["plan"]["candidates"]["cash"] == {"family": "cash", "lookback": 2}
     assert first["execution_authority"] == "none"
@@ -83,11 +83,32 @@ def test_rejects_too_short_dataset_and_invalid_costs():
     task, report = fixtures()
     with pytest.raises(ResearchPlanError, match="needs bars"):
         prepare_scheduled_experiment(
-            task, report, train_bars=70, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
+            task, report, train_bars=71, test_bars=10, code_revision="abc123", source_strategy_definition={"family": "sma", "lookback": 12}
         )
     with pytest.raises(ResearchPlanError, match="combined costs"):
         prepare_scheduled_experiment(
             task, report, train_bars=50, test_bars=10, code_revision="abc123",
             fee_bps=6000, slippage_bps=4000,
+            source_strategy_definition={"family": "sma", "lookback": 12},
+        )
+
+
+def test_rejects_trailing_bars_outside_exact_walk_forward_window():
+    task, report = fixtures()
+    report["dataset"]["canonical_bars"].pop()
+    report["dataset"]["row_count"] -= 1
+    with pytest.raises(ResearchPlanError, match="trailing observations"):
+        prepare_scheduled_experiment(
+            task, report, train_bars=50, test_bars=10, code_revision="abc123",
+            source_strategy_definition={"family": "sma", "lookback": 12},
+        )
+
+
+def test_rejects_duplicate_proposal_source_or_cash_roles():
+    task, report = fixtures()
+    task["candidate"] = {"family": "sma", "lookback": 12}
+    with pytest.raises(ResearchPlanError, match="must be distinct"):
+        prepare_scheduled_experiment(
+            task, report, train_bars=50, test_bars=10, code_revision="abc123",
             source_strategy_definition={"family": "sma", "lookback": 12},
         )
