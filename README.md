@@ -265,3 +265,24 @@ The 300-bar / 99-train / 20-test example creates 200 out-of-sample observations 
 ### Manual public market-data smoke check
 
 After this workflow file is present on the repository's default branch, a manual GitHub Actions run named **Public BTC market-data smoke check** can be started from the Actions tab. It executes `python -m bitcoin_ai.market_data_smoke` against the public Binance, Kraken, and Coinbase BTC-USDT candle endpoints. It validates the three-source dataset and uploads a compact JSON provenance report. This is intentionally an ingestion-only check: it does not create scheduler tasks, run strategy evaluation, reserve or consume a holdout, write candidate/ledger state, or access trading endpoints. A successful run proves only that the requested market-data snapshot passed the configured checks at that time; it says nothing about strategy profitability. Provider failures stop the workflow rather than falling back to fewer venues.
+
+
+### Plan-only queued research CLI
+
+The explicit `bitcoin_ai.research_plan_cli` command connects one task from the validated hash-chained scheduler queue to a newly fetched, three-venue BTC-USDT dataset and writes a portable deterministic plan JSON. It requires the unchanged source strategy family/lookback and exact code revision as explicit inputs. Unknown task IDs, invalid queue integrity, provider failures, or dataset/plan validation failures stop before an output is written.
+
+Example:
+
+```bash
+python -m bitcoin_ai.research_plan_cli \
+  --queue state/research-queue.json \
+  --task-id <queued-task-id> \
+  --code-revision "$(git rev-parse HEAD)" \
+  --source-family sma \
+  --source-lookback 48 \
+  --interval 5m --limit 100 \
+  --train-bars 50 --test-bars 10 \
+  --output state/research-plan.json
+```
+
+The output binds the task, dataset fingerprint, three sources, candidate roles, costs, code revision, and test-window specification. It intentionally omits raw typed bars from the portable artifact. This command only prepares a plan: it does not preregister candidates, reserve/consume a holdout, run a backtest, mutate paper state, or place orders. A successful plan is not evidence of strategy performance or holdout freshness. Use the controlled preregistration/evaluation path only as a separate, explicitly reviewed step.
