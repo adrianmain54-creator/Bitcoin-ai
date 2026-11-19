@@ -25,6 +25,16 @@ def build_result(tmp_path):
         "source": "agent_council:48",
         "cash": "cash:2",
     }
+    returns = {
+        "agent_council_25:48": [0.002] * 200,
+        "agent_council:48": [0.0005] * 200,
+        "cash:2": [0.0] * 200,
+    }
+    stress = {
+        "agent_council_25:48": [0.0015] * 200,
+        "agent_council:48": [0.0002] * 200,
+        "cash:2": [0.0] * 200,
+    }
     for role in ids:
         register_candidate_trial(
             registry, trial_id=ids[role], candidate_name=names[role],
@@ -35,7 +45,9 @@ def build_result(tmp_path):
         )
         complete_candidate_trial(
             registry, trial_id=ids[role],
-            outcome={"observations": 200},
+            outcome={"observations": 200, "plan_id": PLAN_ID, "role": role,
+                     "returns": returns[names[role]],
+                     "doubled_cost_returns": stress[names[role]]},
             completed_at="2026-07-02T00:00:00+00:00",
         )
     reservation = audit_and_append_holdout_records(ledger, [{
@@ -47,16 +59,6 @@ def build_result(tmp_path):
     family = audit_candidate_family(
         registry, dataset_fingerprint=FP, test_start=START, test_end=END,
     )
-    returns = {
-        "agent_council_25:48": [0.002] * 200,
-        "agent_council:48": [0.0005] * 200,
-        "cash:2": [0.0] * 200,
-    }
-    stress = {
-        "agent_council_25:48": [0.0015] * 200,
-        "agent_council:48": [0.0002] * 200,
-        "cash:2": [0.0] * 200,
-    }
     result = {
         "status": "completed_research_only",
         "execution_authority": "none",
