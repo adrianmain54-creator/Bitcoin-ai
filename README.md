@@ -243,3 +243,53 @@ The candidate names, fingerprint, interval, and revision must exactly match the
 preregistered plan. A result of `eligible_for_human_review` is not a trade
 signal or execution authorization; the command cannot promote a strategy or
 change paper/live account state.
+
+
+### End-to-end controlled research CLI
+
+The operator workflow now has explicit commands for fetching, screening,
+running, and reviewing a research experiment. First create a prior research
+report with `research-lab`; it supplies untested improvement hypotheses for
+the selected source candidate. Then fetch a fresh three-venue dataset:
+
+```bash
+bitcoin-ai research-fetch --interval 1h --limit 300 --output btc-dataset.json
+```
+
+Queue only hypotheses whose current market context passes the causal regime,
+OHLCV anomaly, and three-source integrity checks:
+
+```bash
+bitcoin-ai research-schedule \
+  --dataset-report btc-dataset.json \
+  --previous-research-report prior-research.json \
+  --source-candidate "agent_council:48" \
+  --queue research-queue.json --json
+```
+
+Select a queued task ID from the output and run the preregistered experiment:
+
+```bash
+bitcoin-ai research-run \
+  --dataset-report btc-dataset.json \
+  --queue research-queue.json --task-id "$TASK_ID" \
+  --source-family agent_council --source-lookback 48 \
+  --train-bars 119 --test-bars 60 \
+  --candidate-ledger candidate-trials.json \
+  --experiment-ledger holdout-history.json \
+  --code-revision "$(git rev-parse HEAD)" \
+  --output experiment.json
+```
+
+For 300 input candles, 119 training bars and 60-bar test windows create
+three contiguous folds and 180 paired OOS returns. For other dataset lengths,
+choose sizes so `row_count - 1 - train_bars` is a positive multiple of
+`test_bars`; the runner rejects unused trailing observations. The default
+fetch limit is 300 and the default run sizes match that shape.
+
+Finally, use the exact plan identity and window written to `experiment.json`
+with `research-review`. The scheduler abstains on anomalies or uncertain
+market context; the runner reserves the holdout before evaluating, so a failed
+attempt must not be retried on the same plan/window. All commands remain
+historical research only. A review pass is human-review eligibility, not a
+profit forecast, strategy promotion, or authorization to trade.
