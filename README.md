@@ -371,3 +371,17 @@ python -m bitcoin_ai.research_review_catalog \
 Each input bundle is fully checked by the read-only bundle verifier before it can be indexed. The catalog sorts entries by manifest ID, rejects duplicates and tampered bundles, and binds comparison, plan, receipt, and artifact hashes in a deterministic SHA-256 hash chain. Reordering the same input set produces the same catalog. Verify a saved catalog with `verify_review_catalog` from `bitcoin_ai.research_review_catalog`.
 
 This is an export-only index: it does not edit, move, or delete source bundles, does not create a mutable history database, and does not fetch data, rerun research, touch holdout/registry state, change paper state, or execute trades. Hashes provide integrity checks only when compared with a separately retained trusted copy; they are not signatures, trusted timestamps, or proof of profitability. No execution authority is granted.
+
+
+### Reverify a saved catalog against bundle files
+
+A catalog can be checked again later against the exact comparison, HTML, and manifest files it indexes:
+
+```bash
+python -m bitcoin_ai.research_review_catalog \
+  --verify-catalog state/research-review-catalog.json \
+  --bundle state/research-comparison.json state/research-review.html state/research-review-manifest.json \
+  --bundle archive/older-comparison.json archive/older-review.html archive/older-manifest.json
+```
+
+This recomputes each bundle's own verification, requires the supplied manifest IDs to match the catalog exactly (no missing or extra bundles), and compares the recorded comparison/plan/receipt IDs and artifact hashes. It detects changed or substituted files relative to the saved catalog. It cannot prove who created the catalog or that it was never replaced; retain a trusted catalog copy separately. Verification is read-only and grants no execution authority.
