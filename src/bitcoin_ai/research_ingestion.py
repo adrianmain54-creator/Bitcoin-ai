@@ -197,7 +197,11 @@ def prepare_research_dataset(
         "start": core["start"],
         "end": core["end"],
         "row_count": core["row_count"],
-        "sources": names,
+        # Bind every venue's complete normalized OHLCV history and retrieval
+        # provenance, not only the selected canonical series. Otherwise a
+        # secondary venue could change within tolerance without changing the
+        # dataset fingerprint.
+        "sources": core["sources"],
         "canonical_bars": core["canonical_bars"],
     }
     fingerprint = hashlib.sha256(_canonical(fingerprint_material)).hexdigest()
