@@ -188,3 +188,10 @@ print(report["provenance"])
 
 The fetched OHLCV payloads pass through the same strict ingestion gate as caller-supplied data: exact timestamp cadence and alignment, retrieval freshness, a latest-completed-candle age limit of two intervals, finite and structurally valid OHLCV, and cross-source close-price tolerance. The Coinbase adapter verifies the provider's documented newest-first order before reversing it into chronological order; it does not sort arbitrary malformed data. No candles are interpolated, filled, resampled, or repaired. Provider outages, rate limits, product availability, and shared upstream faults remain possible. A successful fetch is a data-quality result only: `holdout_status` remains `not_assessed`, and this operation does not register candidates, evaluate strategies, or authorize paper/live orders.
 
+
+
+### Scheduled dataset-to-experiment planning (research-only)
+
+`bitcoin_ai.research_experiment_plan.prepare_scheduled_experiment` connects one hash-chained scheduler task to a successful three-source `PublicResearchMarketIngestor` dataset report. It checks the queued-task authority, BTC-USDT identity, three unique cross-checked sources, aligned canonical bar count, fingerprint/provenance agreement, chronological finite closes, candidate family/lookback, training/test sizing, and execution costs. It returns typed `Bar` observations plus a deterministic experiment-plan ID and a shared test-window specification for proposal/source/cash comparison.
+
+This is deliberately a preparation boundary, not an autonomous experiment runner. It does not register candidates, reserve holdouts, execute the walk-forward lab, or mark a dataset fresh. The source-candidate label still needs an explicit strategy definition. Before any evaluation, a separate controlled step must preregister all three immutable trials and pass the existing holdout-reuse/fresh-evidence gates. No paper or live trading authority is granted.
