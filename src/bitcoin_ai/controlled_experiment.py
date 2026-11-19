@@ -68,11 +68,11 @@ def _verify_plan(prepared: dict) -> tuple[dict, list]:
     except ValueError as exc:
         raise ControlledExperimentError("dataset fingerprint is malformed") from exc
     candidates = plan.get("candidates")
-    if not isinstance(candidates, dict) or set(candidates) != set(_ROLES):
+    if not isinstance(candidates, dict) or set(candidates) != {"proposal", "unchanged_source", "cash"}:
         raise ControlledExperimentError("plan must define proposal, source, and cash candidates")
     normalized = []
     for role in _ROLES:
-        item = candidates[role]
+        item = candidates["unchanged_source" if role == "source" else role]
         if not isinstance(item, dict) or set(item) != {"family", "lookback"}:
             raise ControlledExperimentError(f"{role} candidate definition is malformed")
         family, lookback = item["family"], item["lookback"]
@@ -158,8 +158,8 @@ def run_preregistered_experiment(
             raise ControlledExperimentError("this deterministic plan has already been registered")
         for role in _ROLES:
             definition = {
-                "family": plan["candidates"][role]["family"],
-                "lookback": plan["candidates"][role]["lookback"],
+                "family": plan["candidates"]["unchanged_source" if role == "source" else role]["family"],
+                "lookback": plan["candidates"]["unchanged_source" if role == "source" else role]["lookback"],
                 "fee_bps": float(costs["fee"]),
                 "slippage_bps": float(costs["slippage"]),
                 "train_bars": plan["train_bars"],
