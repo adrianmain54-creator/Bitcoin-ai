@@ -11,6 +11,7 @@ import json
 import math
 
 from .backtesting import Bar
+from .research_ingestion import ResearchIngestionError, compute_research_dataset_fingerprint
 
 
 class ResearchPlanError(ValueError):
@@ -126,6 +127,12 @@ def prepare_scheduled_experiment(
         bytes.fromhex(fingerprint)
     except ValueError as exc:
         raise ResearchPlanError("dataset fingerprint must be hexadecimal SHA-256") from exc
+    try:
+        computed_fingerprint = compute_research_dataset_fingerprint(dataset)
+    except ResearchIngestionError as exc:
+        raise ResearchPlanError(f"dataset content failed fingerprint validation: {exc}") from exc
+    if computed_fingerprint != fingerprint:
+        raise ResearchPlanError("dataset fingerprint does not match canonical dataset content")
 
     test_start = normalized[train_bars].timestamp.isoformat()
     test_end = normalized[-1].timestamp.isoformat()
