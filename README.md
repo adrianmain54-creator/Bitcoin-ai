@@ -274,14 +274,14 @@ The explicit `bitcoin_ai.research_plan_cli` command connects one task from the v
 Example:
 
 ```bash
-python -m bitcoin_ai.research_plan_cli \\
-  --queue state/research-queue.json \\
-  --task-id <queued-task-id> \\
-  --code-revision "$(git rev-parse HEAD)" \\
-  --source-family sma \\
-  --source-lookback 48 \\
-  --interval 5m --limit 100 \\
-  --train-bars 50 --test-bars 10 \\
+python -m bitcoin_ai.research_plan_cli \
+  --queue state/research-queue.json \
+  --task-id <queued-task-id> \
+  --code-revision "$(git rev-parse HEAD)" \
+  --source-family sma \
+  --source-lookback 48 \
+  --interval 5m --limit 100 \
+  --train-bars 50 --test-bars 10 \
   --output state/research-plan.json
 ```
 
