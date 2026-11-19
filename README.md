@@ -202,3 +202,20 @@ This is deliberately a preparation boundary, not an autonomous experiment runner
 `bitcoin_ai.controlled_experiment.run_preregistered_experiment` executes a prepared plan only after it verifies the plan fingerprint, exact rolling-fold window, three distinct candidate definitions, and explicit cash comparator. It registers immutable proposal/source/cash trial identities, reserves the full test interval in the append-only holdout ledger before running the existing walk-forward research lab, and records each role's fixed-candidate outcome after completion. Repeated plans and overlapping holdout intervals are rejected. Failed runs leave their reservation and incomplete registrations visible; use a genuinely new, unused dataset/window rather than retrying exposed evidence.
 
 This remains historical research only. It does not promote strategies, mutate paper accounts, or place orders. Registry and holdout ledger files require single-writer operation, and cannot prove that no unrecorded external inspection occurred.
+
+
+### Completed experiment evidence review
+
+The controlled walk-forward runner stores each fixed candidate's exact aligned
+out-of-sample per-bar return stream, doubled-cost stream, regime labels, and
+timestamps in its immutable completion event. After a completed run, call
+`evaluate_completed_experiment` from `bitcoin_ai.fresh_evidence` with the
+registry, holdout ledger, plan ID, registered trial IDs, candidate names, and
+the plan's exact dataset fingerprint, test window, and code revision.
+
+The evaluator recognizes and excludes only that run's single exact pre-evaluation
+holdout reservation. Any other overlapping record remains a hard rejection.
+All three completed roles must contain identical OOS timestamps and regime
+labels, and the evaluator uses the recorded paired streams rather than scalar
+summary metrics. A passing result is still only `eligible_for_human_review`;
+it does not authorize promotion, paper execution, or live orders.
