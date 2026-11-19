@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -47,7 +48,7 @@ def test_research_review_cli_passes_exact_plan_identity(monkeypatch, capsys):
     cli.main()
     output = capsys.readouterr().out
     assert "human review only" in output
-    assert captured["paths"] == ("candidate-trials.json", "holdout-history.json")
+    assert captured["paths"] == (Path("candidate-trials.json"), Path("holdout-history.json"))
     assert captured["kwargs"]["trial_ids"] == {
         "proposal": "plan-123:proposal",
         "source": "plan-123:source",
