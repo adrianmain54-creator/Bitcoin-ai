@@ -24,6 +24,7 @@ from .holdout_ledger import (
     load_holdout_ledger,
 )
 from .research_lab import run_strategy_lab
+from .research_plan_artifact import PlanArtifactError, audit_plan_artifact
 
 
 class ControlledExperimentError(ValueError):
@@ -31,6 +32,7 @@ class ControlledExperimentError(ValueError):
 
 
 _ROLES = ("proposal", "source", "cash")
+_INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
 
 
 def _iso(value: str, field: str) -> str:
@@ -54,11 +56,28 @@ def _verify_plan(prepared: dict) -> tuple[dict, list]:
     bars = prepared.get("bars")
     if not isinstance(plan, dict) or not isinstance(bars, list) or len(bars) < 4:
         raise ControlledExperimentError("plan or typed bars are missing")
-    expected_id = hashlib.sha256(json.dumps(
-        plan, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")).hexdigest()
-    if prepared.get("plan_id") != expected_id:
-        raise ControlledExperimentError("experiment plan fingerprint does not match its contents")
+    try:
+        audit_plan_artifact({
+            "status": prepared.get("status"),
+            "plan_id": prepared.get("plan_id"),
+            "plan": plan,
+            "execution_authority": prepared.get("execution_authority"),
+            "side_effects": prepared.get("side_effects"),
+        })
+    except (PlanArtifactError, TypeError, ValueError) as exc:
+        raise ControlledExperimentError(f"portable plan provenance audit failed: {exc}") from exc
+    if plan["row_count"] != len(bars):
+        raise ControlledExperimentError("plan row_count does not match the supplied typed bars")
+    interval_seconds = _INTERVAL_SECONDS.get(plan["interval"])
+    if interval_seconds is None:
+        raise ControlledExperimentError("plan interval is unsupported by the controlled runner")
+    for index, bar in enumerate(bars):
+        if not hasattr(bar, "timestamp") or not isinstance(bar.timestamp, datetime):
+            raise ControlledExperimentError(f"bar {index} has no typed timestamp")
+        if bar.timestamp.tzinfo is None or bar.timestamp.utcoffset() is None:
+            raise ControlledExperimentError(f"bar {index} timestamp must be timezone-aware")
+        if index and (bar.timestamp - bars[index - 1].timestamp).total_seconds() != interval_seconds:
+            raise ControlledExperimentError("typed bars do not match the plan's exact interval cadence")
     if plan.get("symbol") != "BTC-USDT" or not isinstance(plan.get("dataset_fingerprint"), str):
         raise ControlledExperimentError("plan must identify a BTC-USDT dataset")
     if len(plan["dataset_fingerprint"]) != 64:
@@ -208,8 +227,9 @@ def run_preregistered_experiment(
         for role in _ROLES
     ]
     if expected_interval_seconds is None:
-        interval_seconds = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400}
-        expected_interval_seconds = interval_seconds.get(plan.get("interval"))
+        expected_interval_seconds = _INTERVAL_SECONDS.get(plan.get("interval"))
+    elif expected_interval_seconds != _INTERVAL_SECONDS.get(plan.get("interval")):
+        raise ControlledExperimentError("expected_interval_seconds conflicts with the immutable plan interval")
     report = run_strategy_lab(
         bars,
         train_bars=plan["train_bars"],
