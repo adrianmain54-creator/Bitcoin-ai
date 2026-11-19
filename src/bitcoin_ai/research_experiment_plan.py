@@ -11,6 +11,7 @@ import json
 import math
 
 from .backtesting import Bar
+from .research_ingestion import ResearchIngestionError, compute_research_dataset_fingerprint
 
 
 class ResearchPlanError(ValueError):
@@ -82,14 +83,25 @@ def prepare_scheduled_experiment(
     provenance = dataset_report.get("provenance")
     if not isinstance(dataset, dict) or not isinstance(provenance, dict):
         raise ResearchPlanError("dataset or provenance metadata is missing")
-    if dataset.get("symbol") != "BTC-USDT" or dataset.get("cross_source", {}).get("status") != "cross_checked":
+    cross_source = dataset.get("cross_source")
+    if (dataset.get("symbol") != "BTC-USDT" or not isinstance(cross_source, dict)
+            or cross_source.get("status") != "cross_checked"):
         raise ResearchPlanError("only cross-checked BTC-USDT research datasets are accepted")
-    sources = dataset.get("cross_source", {}).get("sources")
-    if not isinstance(sources, list) or len(set(sources)) < 3:
+    sources = cross_source.get("sources")
+    if (not isinstance(sources, list) or len(sources) < 3
+            or any(not isinstance(source, str) or not source for source in sources)
+            or len(set(sources)) != len(sources)):
         raise ResearchPlanError("at least three unique aligned sources are required")
     bars = dataset.get("canonical_bars")
     if not isinstance(bars, list) or len(bars) != dataset.get("row_count") or len(bars) < 4:
         raise ResearchPlanError("canonical bar count is invalid")
+    if (cross_source.get("aligned_candles") != len(bars)
+            or cross_source.get("divergent_candles") != 0):
+        raise ResearchPlanError("dataset cross-source audit is incomplete or divergent")
+    if (not isinstance(bars[0], dict) or not isinstance(bars[-1], dict)
+            or dataset.get("start") != bars[0].get("timestamp")
+            or dataset.get("end") != bars[-1].get("timestamp")):
+        raise ResearchPlanError("dataset start/end metadata does not match canonical bars")
     if isinstance(train_bars, bool) or not isinstance(train_bars, int) or train_bars < 3:
         raise ResearchPlanError("train_bars must be an integer >= 3")
     if isinstance(test_bars, bool) or not isinstance(test_bars, int) or test_bars < 3:
@@ -126,6 +138,12 @@ def prepare_scheduled_experiment(
         bytes.fromhex(fingerprint)
     except ValueError as exc:
         raise ResearchPlanError("dataset fingerprint must be hexadecimal SHA-256") from exc
+    try:
+        computed_fingerprint = compute_research_dataset_fingerprint(dataset)
+    except ResearchIngestionError as exc:
+        raise ResearchPlanError(f"dataset content failed fingerprint validation: {exc}") from exc
+    if computed_fingerprint != fingerprint:
+        raise ResearchPlanError("dataset fingerprint does not match canonical dataset content")
 
     test_start = normalized[train_bars].timestamp.isoformat()
     test_end = normalized[-1].timestamp.isoformat()

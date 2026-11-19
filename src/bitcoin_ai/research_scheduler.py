@@ -106,6 +106,14 @@ def scan_and_queue_research(
     timestamp = _timestamp(observed_at)
     if not isinstance(source_candidate, str) or not source_candidate.strip():
         raise ResearchSchedulerError("source_candidate is required")
+    try:
+        source_family, source_lookback_text = source_candidate.rsplit(":", 1)
+        source_lookback = int(source_lookback_text)
+    except (ValueError, TypeError) as exc:
+        raise ResearchSchedulerError("source_candidate must use family:lookback format") from exc
+    if not source_family.strip() or source_lookback < 1:
+        raise ResearchSchedulerError("source_candidate must use family:positive-lookback format")
+    source_definition = {"family": source_family, "lookback": source_lookback}
     if not isinstance(market_context, dict):
         raise ResearchSchedulerError("market_context must be a mapping")
     if market_context.get("status") != "classified" or market_context.get("posture") != "research_only":
@@ -151,6 +159,7 @@ def scan_and_queue_research(
     queue = _read_queue(path)
     known = {item["event"]["task_id"] for item in queue["events"]}
     added = []
+    skipped_comparator_count = 0
     for proposal in proposals:
         if not isinstance(proposal, dict) or not isinstance(proposal.get("candidate"), dict):
             raise ResearchSchedulerError("each proposal must contain a candidate definition")
@@ -165,6 +174,12 @@ def scan_and_queue_research(
         if not isinstance(hypothesis, str) or not hypothesis.strip() or not isinstance(trigger, str) or not trigger.strip():
             raise ResearchSchedulerError("proposal hypothesis and trigger are required")
         definition = {"family": family, "lookback": lookback}
+        # The unchanged source and cash baseline are already mandatory
+        # comparators in every experiment; queueing either as the proposal
+        # would create duplicate strategy roles rather than a useful trial.
+        if definition == source_definition or definition == {"family": "cash", "lookback": 2}:
+            skipped_comparator_count += 1
+            continue
         identity = {
             "observed_at": timestamp.isoformat(),
             "source_candidate": source_candidate,
@@ -206,6 +221,7 @@ def scan_and_queue_research(
         "status": "queued" if added else "no_new_tasks",
         "queued": added,
         "queued_count": len(added),
+        "skipped_comparator_count": skipped_comparator_count,
         "queue_size": len(queue["events"]),
         "queue_mutated": bool(added),
         "storage": "append_only_hash_chained_single_writer",

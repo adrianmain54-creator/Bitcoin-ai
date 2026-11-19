@@ -48,6 +48,58 @@ def _canonical(value) -> bytes:
                       ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
+def compute_research_dataset_fingerprint(dataset: dict) -> str:
+    """Recompute the canonical prepared-dataset digest from its actual content."""
+    if not isinstance(dataset, dict):
+        raise ResearchIngestionError("dataset must be a mapping")
+    cross_source = dataset.get("cross_source")
+    if not isinstance(cross_source, dict):
+        raise ResearchIngestionError("dataset cross-source metadata is missing")
+    sources = cross_source.get("sources")
+    bars = dataset.get("canonical_bars")
+    if not isinstance(sources, list) or not isinstance(bars, list):
+        raise ResearchIngestionError("dataset source names or canonical bars are missing")
+    schema_version = dataset.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version != 1:
+        raise ResearchIngestionError("unsupported prepared dataset schema")
+    if (not isinstance(sources, list) or not sources
+            or any(not isinstance(source, str) or not source for source in sources)
+            or len(set(sources)) != len(sources) or sources != sorted(sources)):
+        raise ResearchIngestionError("dataset source names must be unique, non-empty, and sorted")
+    row_count = dataset.get("row_count")
+    if (not isinstance(bars, list) or len(bars) < 3
+            or isinstance(row_count, bool) or not isinstance(row_count, int)
+            or row_count != len(bars)):
+        raise ResearchIngestionError("dataset row count does not match canonical bars")
+    if (not isinstance(dataset.get("symbol"), str) or not dataset["symbol"]
+            or not isinstance(dataset.get("interval"), str) or not dataset["interval"]):
+        raise ResearchIngestionError("dataset symbol or interval is missing")
+    if (not isinstance(bars[0], dict) or not isinstance(bars[-1], dict)
+            or dataset.get("start") != bars[0].get("timestamp")
+            or dataset.get("end") != bars[-1].get("timestamp")):
+        raise ResearchIngestionError("dataset start/end metadata does not match canonical bars")
+    aligned = cross_source.get("aligned_candles")
+    divergent = cross_source.get("divergent_candles")
+    if (cross_source.get("status") != "cross_checked"
+            or isinstance(aligned, bool) or not isinstance(aligned, int) or aligned != len(bars)
+            or isinstance(divergent, bool) or not isinstance(divergent, int) or divergent != 0):
+        raise ResearchIngestionError("dataset cross-source integrity metadata is incomplete")
+    material = {
+        "schema_version": dataset.get("schema_version"),
+        "symbol": dataset.get("symbol"),
+        "interval": dataset.get("interval"),
+        "start": dataset.get("start"),
+        "end": dataset.get("end"),
+        "row_count": dataset.get("row_count"),
+        "sources": sources,
+        "canonical_bars": bars,
+    }
+    try:
+        return hashlib.sha256(_canonical(material)).hexdigest()
+    except (TypeError, ValueError) as exc:
+        raise ResearchIngestionError("dataset content cannot be fingerprinted safely") from exc
+
+
 def _number(value, field: str, *, positive: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ResearchIngestionError(f"{field} must be numeric")
@@ -184,23 +236,16 @@ def prepare_research_dataset(
             "source_count": len(sources),
             "sources": names,
             "aligned_candles": len(reference),
+            # A successful cross-check has no threshold breaches; malformed or
+            # divergent source histories are rejected before this report exists.
+            "divergent_candles": 0,
             "maximum_close_deviation": max_deviation,
             "tolerance": float(max_price_deviation),
         },
     }
     # Fingerprint dataset identity, not ingestion timing metadata.
     # Source names are sorted above, so caller ordering cannot affect the hash.
-    fingerprint_material = {
-        "schema_version": core["schema_version"],
-        "symbol": core["symbol"],
-        "interval": core["interval"],
-        "start": core["start"],
-        "end": core["end"],
-        "row_count": core["row_count"],
-        "sources": names,
-        "canonical_bars": core["canonical_bars"],
-    }
-    fingerprint = hashlib.sha256(_canonical(fingerprint_material)).hexdigest()
+    fingerprint = compute_research_dataset_fingerprint(core)
     return {
         "status": "prepared",
         "dataset_fingerprint": fingerprint,

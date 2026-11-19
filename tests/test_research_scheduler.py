@@ -56,11 +56,12 @@ def test_clean_market_context_queues_hash_chained_tasks(tmp_path):
     path = tmp_path / "queue.json"
     report = scan(path)
     assert report["status"] == "queued"
-    assert report["queued_count"] == 2
+    assert report["queued_count"] == 1
+    assert report["skipped_comparator_count"] == 1
     assert report["queue_mutated"] is True
     loaded = load_research_queue(path)
     assert loaded["integrity"] == "valid_hash_chain"
-    assert loaded["task_count"] == 2
+    assert loaded["task_count"] == 1
     assert all(task["execution_authority"] == "none" for task in loaded["tasks"])
     assert all(task["status"] == "queued" for task in loaded["tasks"])
 
@@ -70,7 +71,7 @@ def test_repeated_identical_scan_is_idempotent(tmp_path):
     first = scan(path)
     original = path.read_text()
     second = scan(path)
-    assert first["queued_count"] == 2
+    assert first["queued_count"] == 1
     assert second["status"] == "no_new_tasks"
     assert second["queue_mutated"] is False
     assert path.read_text() == original
@@ -131,3 +132,17 @@ def test_empty_proposal_report_does_not_create_file(tmp_path):
     assert report["status"] == "no_new_tasks"
     assert report["queue_mutated"] is False
     assert not path.exists()
+
+
+
+def test_source_and_cash_baselines_are_not_queued_as_proposal_roles(tmp_path):
+    report = scan(tmp_path / "queue.json")
+    assert report["queued_count"] == 1
+    task = report["queued"][0]
+    assert task["candidate"] == {"family": "agent_council_25", "lookback": 48}
+    assert task["source_candidate"] == "agent_council:48"
+
+
+def test_source_candidate_label_must_be_explicit_family_and_lookback(tmp_path):
+    with pytest.raises(ResearchSchedulerError, match="family:lookback"):
+        scan(tmp_path / "queue.json", source_candidate="agent_council")

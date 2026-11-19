@@ -243,3 +243,58 @@ The candidate names, fingerprint, interval, and revision must exactly match the
 preregistered plan. A result of `eligible_for_human_review` is not a trade
 signal or execution authorization; the command cannot promote a strategy or
 change paper/live account state.
+
+
+### End-to-end controlled research CLI
+
+The operator workflow now has explicit commands for fetching, screening,
+running, and reviewing a research experiment. First create a prior research
+report with `research-lab`; it supplies untested improvement hypotheses for
+the selected source candidate. Then fetch a fresh three-venue dataset:
+
+```bash
+bitcoin-ai research-fetch --interval 1h --limit 300 --output btc-dataset.json
+```
+
+Create a research queue from the validated dataset and the untested
+improvement hypotheses in a previous `research-lab --json` report. The
+scheduler recalculates the causal market context and OHLCV anomaly screen; it
+abstains instead of queuing when anomalies or integrity uncertainty are found:
+
+```bash
+bitcoin-ai research-schedule \
+  --dataset-report btc-dataset.json \
+  --previous-research-report prior-research.json \
+  --source-candidate "agent_council:48" \
+  --queue research-queue.json --json
+```
+
+Select a queued task ID from the output and run the preregistered experiment:
+
+```bash
+bitcoin-ai research-run \
+  --dataset-report btc-dataset.json \
+  --queue research-queue.json --task-id "$TASK_ID" \
+  --source-family agent_council --source-lookback 48 \
+  --train-bars 119 --test-bars 60 \
+  --candidate-ledger candidate-trials.json \
+  --experiment-ledger holdout-history.json \
+  --code-revision "$(git rev-parse HEAD)" \
+  --output experiment.json
+```
+
+When both sizing flags are omitted, the runner automatically uses three
+60-bar test folds and calculates the training window from the actual fetched
+row count (300 rows gives 119 training bars; 299 rows gives 118). This retains
+180 paired OOS returns even when a provider returns one fewer completed candle.
+If you supply both sizing flags manually, choose sizes so
+`row_count - 1 - train_bars` is a positive multiple of `test_bars`; the
+runner rejects unused trailing observations. The selected training window must
+also exceed every candidate's lookback.
+
+Finally, use the exact plan identity and window written to `experiment.json`
+with `research-review`. The scheduler abstains on anomalies or uncertain
+market context; the runner reserves the holdout before evaluating, so a failed
+attempt must not be retried on the same plan/window. All commands remain
+historical research only. A review pass is human-review eligibility, not a
+profit forecast, strategy promotion, or authorization to trade.
