@@ -279,6 +279,11 @@ def main() -> None:
             )
             if task is None:
                 raise ResearchSchedulerError("requested task ID is not present in the validated queue")
+            source_label = f"{args.source_family}:{args.source_lookback}"
+            if task.get("source_candidate") != source_label:
+                raise ResearchSchedulerError(
+                    "source strategy definition does not match the task's unchanged-source label"
+                )
             prepared = prepare_scheduled_experiment(
                 task, dataset_report,
                 train_bars=args.train_bars, test_bars=args.test_bars,
