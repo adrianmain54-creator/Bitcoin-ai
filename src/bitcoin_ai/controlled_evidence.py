@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .candidate_registry import audit_candidate_family, load_candidate_registry
 from .fresh_evidence import FreshEvidenceError, evaluate_fresh_candidate
 
 
@@ -51,18 +52,35 @@ def evaluate_controlled_experiment(
             raise FreshEvidenceError(f"{role} candidate definition is malformed")
         expected_names[role] = f"{candidate['family']}:{candidate['lookback']}"
 
-    family_audit = controlled_result.get("candidate_family_audit")
-    if not isinstance(family_audit, dict) or family_audit.get("status") != "complete":
+    # Recompute from the actual hash-chained registry; never trust an audit object
+    # supplied alongside the report.
+    try:
+        registry = load_candidate_registry(candidate_registry_path)
+        family_audit = audit_candidate_family(
+            candidate_registry_path,
+            dataset_fingerprint=fingerprint,
+            test_start=window["start"],
+            test_end=window["end"],
+        )
+    except Exception as exc:
+        raise FreshEvidenceError(f"candidate registry audit failed: {exc}") from exc
+    if family_audit.get("status") != "complete":
         raise FreshEvidenceError("candidate family audit is not complete")
     audited = {
         item.get("trial_id"): item
         for item in family_audit.get("registered_trials", [])
         if isinstance(item, dict)
     }
+    completions = {
+        item["event"]["trial_id"]: item["event"]
+        for item in registry["events"] if item["event"]["type"] == "completed"
+    }
     for role in _ROLES:
         item = audited.get(trial_ids[role])
+        completion = completions.get(trial_ids[role])
+        outcome = completion.get("outcome") if isinstance(completion, dict) else None
         if (not isinstance(item, dict) or item.get("candidate_name") != expected_names[role]
-                or item.get("completed") is not True or not isinstance(item.get("outcome"), dict)):
+                or item.get("completed") is not True or not isinstance(outcome, dict)):
             raise FreshEvidenceError(f"{role} trial is not durably completed in the candidate registry")
 
     reservation = controlled_result.get("holdout_reservation")
@@ -83,6 +101,13 @@ def evaluate_controlled_experiment(
             raise FreshEvidenceError(f"research report omitted the {role} candidate")
         returns[role] = result.get("returns")
         doubled[role] = result.get("doubled_cost_returns")
+        outcome = completions[trial_ids[role]]["outcome"]
+        if (outcome.get("plan_id") != controlled_result.get("plan_id")
+                or outcome.get("role") != role
+                or outcome.get("returns") != returns[role]
+                or outcome.get("doubled_cost_returns") != doubled[role]
+                or outcome.get("observations") != len(returns[role]) if isinstance(returns[role], list) else True):
+            raise FreshEvidenceError(f"{role} report streams do not match the immutable completed trial outcome")
 
     return evaluate_fresh_candidate(
         candidate_registry_path,
