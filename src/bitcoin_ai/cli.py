@@ -16,7 +16,9 @@ from .research_lab import run_strategy_lab
 from .holdout_ledger import HoldoutLedgerError, load_holdout_ledger, audit_and_append_holdout_records
 from .fresh_evidence import FreshEvidenceError, evaluate_completed_experiment
 from .research_market_ingestion import PublicResearchMarketIngestor, ResearchMarketFetchError
-from .research_scheduler import ResearchSchedulerError, load_research_queue
+from .research_scheduler import ResearchSchedulerError, load_research_queue, scan_and_queue_research
+from .market_anomaly import MarketAnomalyError, audit_ohlcv_anomalies
+from .market_regime_intelligence import MarketRegimeIntelligenceError, classify_market_conditions
 from .research_experiment_plan import ResearchPlanError, prepare_scheduled_experiment
 from .controlled_experiment import ControlledExperimentError, run_preregistered_experiment
 from datetime import datetime, timezone
@@ -97,6 +99,18 @@ def main() -> None:
     fetch_parser.add_argument("--max-age-seconds", type=int, default=900)
     fetch_parser.add_argument("--max-price-deviation", type=float, default=0.01)
     fetch_parser.add_argument("--output", type=Path, required=True, help="Destination JSON dataset report")
+
+    schedule_parser = subparsers.add_parser(
+        "research-schedule",
+        help="Queue only clean, risk-screened hypotheses from prior research",
+    )
+    schedule_parser.add_argument("--dataset-report", type=Path, required=True)
+    schedule_parser.add_argument("--previous-research-report", type=Path, required=True)
+    schedule_parser.add_argument("--source-candidate", required=True, help="Exact family:lookback in the prior report")
+    schedule_parser.add_argument("--queue", type=Path, required=True)
+    schedule_parser.add_argument("--observed-at", help="Optional timezone-aware ISO timestamp")
+    schedule_parser.add_argument("--minimum-aligned-candles", type=int, default=20)
+    schedule_parser.add_argument("--json", action="store_true")
 
     run_parser = subparsers.add_parser(
         "research-run", help="Run one queued, preregistered research experiment (no trading)",
@@ -267,6 +281,61 @@ def main() -> None:
         )
         print(f"Saved validated dataset report to {args.output}")
         print("Holdout status remains not_assessed; no strategy evaluation was run.")
+        return
+
+    if args.command == "research-schedule":
+        try:
+            dataset_report = json.loads(args.dataset_report.read_text(encoding="utf-8"))
+            previous_report = json.loads(args.previous_research_report.read_text(encoding="utf-8"))
+            if (dataset_report.get("status") != "prepared"
+                    or dataset_report.get("holdout_status") != "not_assessed"):
+                raise ResearchSchedulerError("dataset must be prepared with holdout_status=not_assessed")
+            dataset = dataset_report.get("dataset", {})
+            bars = dataset.get("canonical_bars")
+            if not isinstance(bars, list):
+                raise ResearchSchedulerError("dataset report has no canonical OHLCV bars")
+            anomaly_candles = []
+            for bar in bars:
+                stamp = datetime.fromisoformat(bar["timestamp"].replace("Z", "+00:00"))
+                anomaly_candles.append({**bar, "timestamp": stamp.timestamp()})
+            anomaly_report = audit_ohlcv_anomalies(anomaly_candles)
+            exchange_audit = dict(dataset.get("cross_source", {}))
+            # The strict ingestion report is emitted only after every source has
+            # passed its close-price tolerance; preserve that explicit audit count.
+            if "divergent_candles" not in exchange_audit:
+                raise ResearchSchedulerError("dataset cross-source audit omits divergence counts")
+            market_context = classify_market_conditions(
+                [bar["close"] for bar in bars],
+                anomaly_report=anomaly_report,
+                exchange_audit=exchange_audit,
+                minimum_aligned_candles=args.minimum_aligned_candles,
+            )
+            proposal_map = previous_report.get("strategy_improvement_proposals", {})
+            proposal_report = proposal_map.get(args.source_candidate) if isinstance(proposal_map, dict) else None
+            if not isinstance(proposal_report, dict):
+                raise ResearchSchedulerError("prior report has no improvement hypotheses for the source candidate")
+            report = scan_and_queue_research(
+                args.queue,
+                observed_at=args.observed_at or datetime.now(timezone.utc).isoformat(),
+                market_context=market_context,
+                proposal_report=proposal_report,
+                source_candidate=args.source_candidate,
+            )
+        except (
+            ResearchSchedulerError, MarketAnomalyError, MarketRegimeIntelligenceError,
+            OSError, ValueError, KeyError, TypeError,
+        ) as exc:
+            parser.exit(1, f"bitcoin-ai: research scheduling refused: {exc}\\n")
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"Research scheduler: {report['status']}")
+            print(f"Queued tasks: {report.get('queued_count', 0)}")
+            print(f"Skipped comparator duplicates: {report.get('skipped_comparator_count', 0)}")
+            for task in report.get("queued", []):
+                print(f"  {task['task_id']} — {task['candidate']['family']}:{task['candidate']['lookback']}")
+            if report["status"] == "abstained":
+                print(f"Reason: {report['reason']}")
         return
 
     if args.command == "research-run":
