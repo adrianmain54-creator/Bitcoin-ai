@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import copy
 
 import pytest
@@ -13,7 +13,7 @@ from bitcoin_ai.research_experiment_plan import (
 def fixtures():
     start = datetime(2026, 1, 1, tzinfo=timezone.utc)
     bars = [
-        {"timestamp": (start.replace(minute=i)).isoformat(), "open": 100+i,
+        {"timestamp": (start + timedelta(minutes=i)).isoformat(), "open": 100+i,
          "high": 102+i, "low": 99+i, "close": 101+i, "volume": 1.0}
         for i in range(80)
     ]
