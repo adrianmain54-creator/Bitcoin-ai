@@ -14,6 +14,7 @@ from .state_store import PaperStateStore, StateStoreError
 from .walk_forward import walk_forward_sma_backtest
 from .research_lab import run_strategy_lab
 from .holdout_ledger import HoldoutLedgerError, load_holdout_ledger, audit_and_append_holdout_records
+from .fresh_evidence import FreshEvidenceError, evaluate_completed_experiment
 
 DEFAULT_DATA = Path(__file__).resolve().parents[2] / "data" / "knowledge" / "starter.jsonl"
 
@@ -82,6 +83,25 @@ def main() -> None:
     lab_parser.add_argument("--candidate-ledger", type=Path, help="Durable pre-registered candidate trial ledger JSON path (single writer)")
     lab_parser.add_argument("--code-revision", help="Exact source-control revision used for this research run; required with --candidate-ledger")
     lab_parser.add_argument("--json", action="store_true")
+
+    review_parser = subparsers.add_parser(
+        "research-review",
+        help="Evaluate a completed preregistered experiment for human review only",
+    )
+    review_parser.add_argument("--candidate-ledger", type=Path, required=True)
+    review_parser.add_argument("--experiment-ledger", type=Path, required=True)
+    review_parser.add_argument("--plan-id", required=True)
+    review_parser.add_argument("--dataset-fingerprint", required=True)
+    review_parser.add_argument("--test-start", required=True, help="Timezone-aware ISO timestamp")
+    review_parser.add_argument("--test-end", required=True, help="Timezone-aware ISO timestamp")
+    review_parser.add_argument("--code-revision", required=True)
+    review_parser.add_argument("--proposal-candidate", required=True, help="Exact registered family:lookback")
+    review_parser.add_argument("--source-candidate", required=True, help="Exact registered family:lookback")
+    review_parser.add_argument("--min-observations", type=int, default=180)
+    review_parser.add_argument("--bootstrap-trials", type=int, default=2000)
+    review_parser.add_argument("--block-size", type=int, default=5)
+    review_parser.add_argument("--seed", type=int, default=20261118)
+    review_parser.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
 
@@ -192,6 +212,50 @@ def main() -> None:
             print("Block bootstrap:", json.dumps(result["bootstrap"], sort_keys=True))
             for fold in result["folds"]:
                 print(f"Fold {fold['test_start']} to {fold['test_end']}: {fold['selected_family']} / {fold['selected_lookback']}")
+        return
+
+    if args.command == "research-review":
+        try:
+            report = evaluate_completed_experiment(
+                args.candidate_ledger,
+                args.experiment_ledger,
+                plan_id=args.plan_id,
+                trial_ids={
+                    "proposal": f"{args.plan_id}:proposal",
+                    "source": f"{args.plan_id}:source",
+                    "cash": f"{args.plan_id}:cash",
+                },
+                expected_candidate_names={
+                    "proposal": args.proposal_candidate,
+                    "source": args.source_candidate,
+                    "cash": "cash:2",
+                },
+                dataset_fingerprint=args.dataset_fingerprint,
+                test_start=args.test_start,
+                test_end=args.test_end,
+                code_revision=args.code_revision,
+                min_observations=args.min_observations,
+                bootstrap_trials=args.bootstrap_trials,
+                block_size=args.block_size,
+                seed=args.seed,
+            )
+        except (FreshEvidenceError, OSError, ValueError) as exc:
+            parser.exit(1, f"bitcoin-ai: research review refused: {exc}\\n")
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"Fresh-evidence review: {report['status']}")
+            print(f"Observations: {report['provenance']['observations']}")
+            print("Comparisons:")
+            for role, comparison in report["comparisons"].items():
+                print(
+                    f"  proposal vs {role}: "
+                    f"paired 5% lower edge "
+                    f"{comparison['paired_edge_lower_5pct_pct_points']:.6f} pp | "
+                    f"bootstrap positive "
+                    f"{comparison['bootstrap_positive_share_pct']:.2f}%"
+                )
+            print("Decision: human review only; no strategy promotion or trading authority.")
         return
 
     if args.command == "paper-run":
