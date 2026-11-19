@@ -20,7 +20,7 @@ def _fixtures():
     bars = [
         {"timestamp": (start + timedelta(minutes=i)).isoformat(),
          "open": 100+i, "high": 102+i, "low": 99+i, "close": 101+i, "volume": 1}
-        for i in range(80)
+        for i in range(81)
     ]
     fingerprint = "a" * 64
     report = {
