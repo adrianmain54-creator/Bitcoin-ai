@@ -195,3 +195,10 @@ The fetched OHLCV payloads pass through the same strict ingestion gate as caller
 `bitcoin_ai.research_experiment_plan.prepare_scheduled_experiment` connects one hash-chained scheduler task to a successful three-source `PublicResearchMarketIngestor` dataset report. It checks the queued-task authority, BTC-USDT identity, three unique cross-checked sources, aligned canonical bar count, fingerprint/provenance agreement, chronological finite closes, candidate family/lookback, training/test sizing, and execution costs. It returns typed `Bar` observations plus a deterministic experiment-plan ID and a shared test-window specification for proposal/source/cash comparison.
 
 This is deliberately a preparation boundary, not an autonomous experiment runner. It does not register candidates, reserve holdouts, execute the walk-forward lab, or mark a dataset fresh. The unchanged source strategy must be supplied explicitly by the caller. Before any evaluation, a separate controlled step must preregister all three immutable trials and pass the existing holdout-reuse/fresh-evidence gates. No paper or live trading authority is granted.
+
+
+### Controlled preregistered walk-forward runner (research-only)
+
+`bitcoin_ai.controlled_experiment.run_preregistered_experiment` executes a prepared plan only after it verifies the plan fingerprint, exact rolling-fold window, three distinct candidate definitions, and explicit cash comparator. It registers immutable proposal/source/cash trial identities, reserves the full test interval in the append-only holdout ledger before running the existing walk-forward research lab, and records each role's fixed-candidate outcome after completion. Repeated plans and overlapping holdout intervals are rejected. Failed runs leave their reservation and incomplete registrations visible; use a genuinely new, unused dataset/window rather than retrying exposed evidence.
+
+This remains historical research only. It does not promote strategies, mutate paper accounts, or place orders. Registry and holdout ledger files require single-writer operation, and cannot prove that no unrecorded external inspection occurred.
