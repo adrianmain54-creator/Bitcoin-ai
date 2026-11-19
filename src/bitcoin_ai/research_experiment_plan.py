@@ -56,6 +56,7 @@ def prepare_scheduled_experiment(
     train_bars: int,
     test_bars: int,
     code_revision: str,
+    source_strategy_definition: dict,
     fee_bps: float = 10.0,
     slippage_bps: float = 5.0,
 ) -> dict:
@@ -70,8 +71,9 @@ def prepare_scheduled_experiment(
     if not isinstance(task.get("task_id"), str) or not task["task_id"]:
         raise ResearchPlanError("task_id is required")
     candidate = _candidate(task.get("candidate"), "task candidate", train_bars)
+    source_candidate = _candidate(source_strategy_definition, "source strategy", train_bars)
     if not isinstance(task.get("source_candidate"), str) or not task["source_candidate"].strip():
-        raise ResearchPlanError("source_candidate is required for paired comparison")
+        raise ResearchPlanError("source_candidate label is required for paired comparison")
     if not isinstance(dataset_report, dict) or dataset_report.get("status") != "prepared":
         raise ResearchPlanError("dataset report is not prepared")
     if dataset_report.get("holdout_status") != "not_assessed":
@@ -140,7 +142,7 @@ def prepare_scheduled_experiment(
         "code_revision": code_revision,
         "candidates": {
             "proposal": candidate,
-            "unchanged_source_label": task["source_candidate"],
+            "unchanged_source": source_candidate,
             "cash": {"family": "cash", "lookback": 2},
         },
         "costs_bps": {"fee": float(fee_bps), "slippage": float(slippage_bps)},
@@ -164,7 +166,6 @@ def prepare_scheduled_experiment(
         "side_effects": [],
         "limitations": [
             "Preparation does not preregister trials or reserve a holdout.",
-            "The source candidate is a label supplied by the queued task and must be resolved to an explicit strategy definition before execution.",
             "The supplied dataset fingerprint is not proof of freshness or unused holdout history.",
             "No backtest, paper-state mutation, promotion, or order execution occurs.",
         ],
