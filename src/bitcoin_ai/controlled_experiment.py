@@ -245,6 +245,10 @@ def run_preregistered_experiment(
                         "excess_return_vs_buy_and_hold_pct_points"
                     ),
                     "metrics_at_2x_cost": result.get("metrics_at_2x_cost"),
+                    "oos_returns": result.get("oos_returns"),
+                    "oos_returns_at_2x_cost": result.get("oos_returns_at_2x_cost"),
+                    "oos_regimes": result.get("oos_regimes"),
+                    "oos_timestamps": result.get("oos_timestamps"),
                 },
                 completed_at=completed_at,
             )
