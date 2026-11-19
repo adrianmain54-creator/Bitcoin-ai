@@ -76,3 +76,36 @@ def test_catalog_write_emits_verifiable_export(tmp_path):
     result = catalog.write_review_catalog([bundle], output)
     assert json.loads(output.read_text(encoding="utf-8"))["catalog_id"] == result["catalog_id"]
     assert audit.verify_review_bundle(*bundle)["status"] == "verified"
+
+
+def test_saved_catalog_reverifies_exact_bundle_bytes(tmp_path):
+    bundle = _make_bundle(tmp_path)
+    value = catalog.build_review_catalog([bundle])
+    result = catalog.verify_review_catalog_bundles(value, [bundle])
+    assert result["bundle_bytes_reverified"] is True
+
+
+def test_saved_catalog_rejects_missing_or_extra_bundles(tmp_path):
+    first = _make_bundle(tmp_path, "first")
+    second = _make_bundle(tmp_path, "second", observations=201)
+    value = catalog.build_review_catalog([first])
+    with pytest.raises(catalog.ReviewCatalogError, match="exactly match"):
+        catalog.verify_review_catalog_bundles(value, [second])
+    with pytest.raises(catalog.ReviewCatalogError, match="exactly match"):
+        catalog.verify_review_catalog_bundles(value, [first, second])
+
+
+def test_saved_catalog_rejects_bundle_changed_after_catalog_creation(tmp_path):
+    bundle = _make_bundle(tmp_path)
+    value = catalog.build_review_catalog([bundle])
+    bundle[0].write_text(bundle[0].read_text(encoding="utf-8") + " ", encoding="utf-8")
+    with pytest.raises(catalog.ReviewCatalogError, match="bundle reverification failed"):
+        catalog.verify_review_catalog_bundles(value, [bundle])
+
+
+def test_saved_catalog_reverification_is_read_only(tmp_path):
+    bundle = _make_bundle(tmp_path)
+    value = catalog.build_review_catalog([bundle])
+    before = [path.read_bytes() for path in bundle]
+    catalog.verify_review_catalog_bundles(value, [bundle])
+    assert [path.read_bytes() for path in bundle] == before
