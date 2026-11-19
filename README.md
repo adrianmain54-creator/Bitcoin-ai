@@ -312,3 +312,14 @@ python -m bitcoin_ai.research_comparison --controlled state/controlled-result.js
 ```
 
 The output is comparison-only, research-only, and has no execution authority. It does not rerun a holdout, mutate a ledger, calculate new significance tests, or authorize a trade. A favorable result means only that the existing evidence supports further human review; it is not a profitability claim or trading recommendation.
+
+
+### Static research-review dashboard
+
+A completed, integrity-checked comparison can be rendered as a portable HTML review page:
+
+```bash
+python -m bitcoin_ai.research_review --input state/research-comparison.json --output state/research-review.html
+```
+
+The renderer verifies the comparison fingerprint and required provenance/metric fields before producing a self-contained static page. Untrusted text is HTML-escaped; no scripts, external assets, network requests, or interactive trading controls are included. Missing or malformed metrics fail closed. The page displays candidate definitions, after-cost comparisons, existing statistical evidence, limitations, and links by ID to the plan and reproducibility receipt. It is a read-only research aid, not a trading dashboard or execution interface.
