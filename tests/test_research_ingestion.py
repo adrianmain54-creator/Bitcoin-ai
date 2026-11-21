@@ -128,9 +128,9 @@ def test_divergent_source_and_misaligned_sources_are_rejected():
         ingest(divergent)
     shifted = [payload("binance"), payload("kraken"),
                payload("coinbase", timestamps=[
-                   INGESTED - timedelta(minutes=14),
-                   INGESTED - timedelta(minutes=9),
-                   INGESTED - timedelta(minutes=4),
+                   INGESTED - timedelta(minutes=16),
+                   INGESTED - timedelta(minutes=11),
+                   INGESTED - timedelta(minutes=6),
                ])]
     with pytest.raises(ResearchIngestionError, match="do not align"):
         ingest(shifted)
