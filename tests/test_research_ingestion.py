@@ -104,15 +104,33 @@ def test_future_candle_timestamp_is_rejected():
         ingest([payload(name, timestamps=future_times) for name in ("binance", "kraken", "coinbase")])
 
 
+def test_candle_whose_interval_has_not_finished_is_rejected():
+    # The timestamp is a candle open time. Being earlier than ingestion time
+    # does not make the candle complete when its full interval has not elapsed.
+    incomplete_times = [
+        INGESTED - timedelta(minutes=12),
+        INGESTED - timedelta(minutes=7),
+        INGESTED - timedelta(minutes=2),
+    ]
+    with pytest.raises(ResearchIngestionError, match="candle is incomplete"):
+        ingest([payload(name, timestamps=incomplete_times)
+                for name in ("binance", "kraken", "coinbase")])
+
+
+def test_candle_ending_exactly_at_ingestion_time_is_complete():
+    report = ingest()
+    assert report["dataset"]["end"] == (INGESTED - timedelta(minutes=5)).isoformat()
+
+
 def test_divergent_source_and_misaligned_sources_are_rejected():
     divergent = [payload("binance"), payload("kraken"), payload("coinbase", closes=[100, 104, 102])]
     with pytest.raises(ResearchIngestionError, match="divergence"):
         ingest(divergent)
     shifted = [payload("binance"), payload("kraken"),
                payload("coinbase", timestamps=[
-                   INGESTED - timedelta(minutes=14),
-                   INGESTED - timedelta(minutes=9),
-                   INGESTED - timedelta(minutes=4),
+                   INGESTED - timedelta(minutes=16),
+                   INGESTED - timedelta(minutes=11),
+                   INGESTED - timedelta(minutes=6),
                ])]
     with pytest.raises(ResearchIngestionError, match="do not align"):
         ingest(shifted)

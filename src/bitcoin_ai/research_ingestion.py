@@ -5,7 +5,7 @@ This module performs no network access and never sorts, fills, resamples, or rep
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import math
@@ -85,6 +85,8 @@ def _normalize_source(payload: dict, *, symbol: str, interval: str,
         stamp = _timestamp(row.get("timestamp"), f"{source}.bars[{index}].timestamp")
         if stamp > ingested_at:
             raise ResearchIngestionError(f"{source}: candle timestamp is in the future")
+        if stamp + timedelta(seconds=interval_seconds) > ingested_at:
+            raise ResearchIngestionError(f"{source}: candle is incomplete at ingestion time")
         if previous is not None:
             delta = (stamp - previous).total_seconds()
             if delta <= 0:
